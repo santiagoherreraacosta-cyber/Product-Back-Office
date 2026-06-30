@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "python -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check app.js"
+    "start": "node server.js",
+    "check": "node --check app.js && node --check server.js && node --check src/contextStore.js && node --check src/contextRetriever.js && node --check scripts/migrate-context.mjs"
   }
 }
