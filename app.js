@@ -587,6 +587,71 @@ function renderStepper() {
 }
 
 // --- Messages ---
+// Convert LLM Markdown output to safe HTML — no external dependencies
+function renderMarkdown(text) {
+  if (!text) return "";
+  // 1. Escape HTML entities first (XSS protection)
+  let s = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // 2. Fenced code blocks (must run before inline code)
+  s = s.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
+    `<pre><code>${code.trimEnd()}</code></pre>`);
+
+  // 3. Inline code
+  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+
+  // 4. Line-by-line pass for headings, lists, blockquotes, HR
+  const lines = s.split("\n");
+  const out = [];
+  let inUl = false, inOl = false;
+
+  const closeLists = () => {
+    if (inUl) { out.push("</ul>"); inUl = false; }
+    if (inOl) { out.push("</ol>"); inOl = false; }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^### /.test(line))     { closeLists(); out.push(`<h4>${line.slice(4)}</h4>`); continue; }
+    if (/^## /.test(line))      { closeLists(); out.push(`<h3>${line.slice(3)}</h3>`); continue; }
+    if (/^# /.test(line))       { closeLists(); out.push(`<h3>${line.slice(2)}</h3>`); continue; }
+    if (/^&gt; /.test(line))    { closeLists(); out.push(`<blockquote>${line.slice(5)}</blockquote>`); continue; }
+    if (/^---+$/.test(line))    { closeLists(); out.push("<hr>"); continue; }
+    if (/^[-*] /.test(line)) {
+      if (!inUl) { if (inOl) { out.push("</ol>"); inOl = false; } out.push("<ul>"); inUl = true; }
+      out.push(`<li>${line.slice(2)}</li>`); continue;
+    }
+    if (/^\d+\. /.test(line)) {
+      if (!inOl) { if (inUl) { out.push("</ul>"); inUl = false; } out.push("<ol>"); inOl = true; }
+      out.push(`<li>${line.replace(/^\d+\. /, "")}</li>`); continue;
+    }
+    closeLists();
+    if (!line.trim()) { out.push(""); continue; }
+    out.push(line);
+  }
+  closeLists();
+  s = out.join("\n");
+
+  // 5. Bold and italic (after line processing to avoid breaking list tags)
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  s = s.replace(/_([^_\n]+)_/g, "<em>$1</em>");
+
+  // 6. Wrap plain-text runs in <p>, convert single \n to <br> within paragraphs
+  const blocks = s.split(/\n{2,}/);
+  s = blocks.map((block) => {
+    const t = block.trim();
+    if (!t) return "";
+    if (/^<(h[2-4]|ul|ol|pre|hr|blockquote)/.test(t)) return t;
+    return `<p>${t.replace(/\n/g, "<br>")}</p>`;
+  }).join("\n");
+
+  return s;
+}
+
 function loadMessages(cycleId) {
   const cycle = cycles.find((c) => c.id === cycleId);
   const msgs = cycle?.messages ?? [];
@@ -610,7 +675,7 @@ function renderMessages(msgs) {
       inner.insertAdjacentHTML("beforeend", `<div class="user-message">${escapeHtml(m.content)}</div>`);
     } else {
       inner.insertAdjacentHTML("beforeend",
-        `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p>${escapeHtml(m.content)}</p></div></article>`);
+        `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body">${renderMarkdown(m.content)}</div></article>`);
     }
   });
   messageStream.scrollTop = messageStream.scrollHeight;
@@ -666,7 +731,7 @@ async function sendMessage() {
     const data = await res.json();
     thinkingEl.classList.remove("thinking");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
-    thinkingEl.textContent = reply;
+    thinkingEl.innerHTML = renderMarkdown(reply);
     // Keep local cycle.messages in sync so history is correct on re-select
     const activeCycle = getCurrentCycle();
     if (activeCycle) {

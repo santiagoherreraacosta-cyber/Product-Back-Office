@@ -282,8 +282,18 @@ button { cursor: pointer; }
 .ai-message { display: grid; gap: 12px; grid-template-columns: 27px 1fr; }
 .ai-avatar { align-items: center; background: var(--orange); border-radius: 8px; color: #fff; display: flex; font-size: 13px; font-weight: 700; height: 27px; justify-content: center; width: 27px; }
 .ai-body { color: var(--text); font-size: 14.5px; min-width: 0; }
-.ai-body p { margin: 0 0 12px; }
+.ai-body p { margin: 0 0 10px; }
+.ai-body p:last-child { margin-bottom: 0; }
 .ai-body strong { font-weight: 600; }
+.ai-body h3 { font-size: 14px; font-weight: 700; margin: 14px 0 5px; color: var(--text); }
+.ai-body h4 { font-size: 12px; font-weight: 700; margin: 10px 0 4px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+.ai-body ul, .ai-body ol { margin: 4px 0 10px 0; padding-left: 18px; }
+.ai-body li { margin-bottom: 3px; }
+.ai-body code { font-family: var(--mono); font-size: 12px; background: var(--code); border-radius: 4px; padding: 1px 5px; color: var(--orange); }
+.ai-body pre { background: var(--code); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 8px 0 10px; }
+.ai-body pre code { background: none; padding: 0; color: var(--text); font-size: 12px; }
+.ai-body blockquote { border-left: 3px solid var(--line); margin: 6px 0 10px; padding: 3px 12px; color: var(--text2); font-style: italic; }
+.ai-body hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 
 .primary-action, .secondary-action, .export-button, .send-button {
   border: 0;
