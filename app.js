@@ -33,6 +33,15 @@ const briefBody = document.querySelector("#briefBody");
 const experimentBody = document.querySelector("#experimentBody");
 const paletteSearch = document.querySelector("#paletteSearch");
 
+const patternSearch = document.querySelector("#patternSearch");
+const patternFilters = document.querySelector("#patternFilters");
+const patternGrid = document.querySelector("#patternGrid");
+const patternDialog = document.querySelector("#patternDialog");
+const patternForm = document.querySelector("#patternForm");
+const patternPreview = document.querySelector("#patternPreview");
+const patternName = document.querySelector("#patternName");
+const patternLearning = document.querySelector("#patternLearning");
+
 const phaseSeed = [
   { key: "F0", label: "Sense", state: "done" },
   { key: "F1", label: "Diagnose", state: "active", note: "falta 2ª fuente" },
@@ -56,6 +65,9 @@ let filled = riskAccepted ? 7 : 6;
 let promptIndex = 0;
 let currentView = "workspace";
 let deliverable = "brief";
+let patterns = [];
+let activePatternFilter = "all";
+let patternCandidate = null;
 
 init();
 
@@ -65,6 +77,7 @@ function init() {
   renderMessages();
   setView("workspace");
   renderBriefState();
+  loadPatterns();
   rotatePlaceholder();
   setInterval(rotatePlaceholder, 4200);
 }
@@ -78,6 +91,7 @@ phaseStepper.addEventListener("click", (event) => {
   const row = event.target.closest("[data-phase]");
   if (!row) return;
   activePhase = row.dataset.phase;
+  if (activePhase === "F5") openPatternCandidate();
   phases = phases.map((phase) => ({ ...phase, state: phase.key === activePhase ? "active" : phase.state === "active" ? "todo" : phase.state }));
   renderStepper();
 });
@@ -151,6 +165,28 @@ newCycleButton?.addEventListener("click", () => {
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
 
+patternSearch?.addEventListener("input", renderPatterns);
+
+patternFilters?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-filter]");
+  if (!button) return;
+  activePatternFilter = button.dataset.filter;
+  patternFilters.querySelectorAll(".filter").forEach((item) => item.classList.toggle("active", item === button));
+  renderPatterns();
+});
+
+patternGrid?.addEventListener("click", async (event) => {
+  const reuseButton = event.target.closest("[data-reuse-pattern]");
+  if (!reuseButton) return;
+  await reusePattern(reuseButton.dataset.reusePattern);
+});
+
+patternForm?.addEventListener("click", async (event) => {
+  const saveButton = event.target.closest("[data-save-pattern]");
+  if (!saveButton) return;
+  await savePatternCandidate(saveButton.dataset.savePattern);
+});
+
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();
   commandPalette.querySelectorAll("[data-palette-command]").forEach((button) => {
@@ -160,6 +196,7 @@ paletteSearch?.addEventListener("input", () => {
 
 function setView(view) {
   currentView = view;
+  if (view === "library") loadPatterns();
   workspace.dataset.view = view;
   homeView.hidden = view !== "home";
   workspaceView.hidden = view !== "workspace";
@@ -267,6 +304,95 @@ function renderGateCard() {
         <button id="advanceAnyway" class="secondary-action" type="button">Avanzar igual</button>
       </div>
     </article>`;
+}
+
+
+async function loadPatterns() {
+  try {
+    const response = await fetch("/api/patterns");
+    patterns = response.ok ? await response.json() : [];
+  } catch {
+    patterns = [];
+  }
+  renderPatterns();
+}
+
+function renderPatterns() {
+  if (!patternGrid) return;
+  const term = (patternSearch?.value || "").toLowerCase();
+  const filtered = patterns.filter((pattern) => {
+    const matchesText = [pattern.name, pattern.learning, pattern.segment, pattern.cause, pattern.stage, pattern.source_cycle]
+      .join(" ")
+      .toLowerCase()
+      .includes(term);
+    const matchesFilter = activePatternFilter === "all" || pattern.type === activePatternFilter || pattern.cause === activePatternFilter;
+    return matchesText && matchesFilter;
+  });
+
+  if (!filtered.length) {
+    patternGrid.innerHTML = `<article class="empty-pattern-state">Aún no hay patrones. Cierra tu primer ciclo en F5 y aparecerá aquí.</article>`;
+    return;
+  }
+
+  patternGrid.innerHTML = filtered.map(renderPatternCard).join("");
+}
+
+function renderPatternCard(pattern) {
+  const typeLabel = pattern.type === "anti" ? "ANTI-PATRÓN" : "PATRÓN";
+  const date = new Intl.DateTimeFormat("es", { day: "numeric", month: "short" }).format(new Date(pattern.created_at));
+  return `
+    <article class="pattern-card">
+      <span class="type-badge ${pattern.type === "anti" ? "anti" : "pattern"}">${typeLabel}</span>
+      <h2>${escapeHtml(pattern.name)}</h2>
+      <div class="chip-row"><span class="chip cause ${causeClass(pattern.cause)}"><span class="dot"></span>${escapeHtml(pattern.cause)}</span><span class="chip neutral">${escapeHtml(pattern.segment)}</span><span class="chip neutral">${escapeHtml(pattern.stage)}</span></div>
+      <p><strong>Qué aprendimos:</strong> ${escapeHtml(pattern.learning)}</p>
+      <footer><a href="#">${escapeHtml(pattern.source_cycle)}</a><span>${date} · reutilizado ${pattern.reuse_count || 0} veces</span></footer>
+      <button class="secondary-action reuse-action" type="button" data-reuse-pattern="${pattern.id}">Usar en nuevo ciclo</button>
+    </article>`;
+}
+
+function causeClass(cause) {
+  return { "Motivación": "motivation", Ability: "ability", Prompt: "prompt" }[cause] || "ability";
+}
+
+function openPatternCandidate() {
+  patternCandidate = {
+    name: "Reducir fricción Ability después del primer pedido",
+    learning: "Cuando el seller ya entendió valor, una guía asistida vence más fricción que otro recordatorio.",
+    cause: "Ability",
+    segment: "Rebuscador Digital",
+    stage: "Setup → Aha",
+    source_cycle: "Cliff de activación post-Aha",
+  };
+  patternName.value = patternCandidate.name;
+  patternLearning.value = patternCandidate.learning;
+  patternPreview.innerHTML = `<strong>${escapeHtml(patternCandidate.source_cycle)}</strong><span>${escapeHtml(patternCandidate.cause)} · ${escapeHtml(patternCandidate.segment)} · ${escapeHtml(patternCandidate.stage)}</span>`;
+  patternDialog.showModal();
+}
+
+async function savePatternCandidate(type) {
+  if (!patternCandidate || !patternForm.reportValidity()) return;
+  const payload = { ...patternCandidate, type, name: patternName.value, learning: patternLearning.value };
+  const response = await fetch("/api/patterns", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) return;
+  patternDialog.close();
+  await loadPatterns();
+  setView("library");
+  addAiNote(`${type === "anti" ? "Anti-patrón" : "Patrón"} guardado en la Biblioteca. Lo podremos reutilizar en próximos ciclos.`);
+}
+
+async function reusePattern(id) {
+  const response = await fetch(`/api/patterns/${id}/reuse`, { method: "POST" });
+  if (!response.ok) return;
+  await loadPatterns();
+  setView("workspace");
+  activePhase = "F0";
+  renderStepper();
+  addAiNote("Patrón reutilizado en un nuevo ciclo. Incrementé su contador de reuse_count en la Biblioteca.");
 }
 
 function sendMessage() {

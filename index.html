@@ -125,11 +125,8 @@
 
         <section id="libraryView" class="app-view library-view scrim" hidden>
           <header class="page-header"><div><p class="eyebrow">Memoria del equipo</p><h1>Biblioteca de Patrones</h1><p>Patrones y anti-patrones aprendidos al cerrar ciclos en F5.</p></div><input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" /></header>
-          <div class="filter-row"><button class="filter active">Todos</button><button class="filter">Patrón</button><button class="filter">Anti-patrón</button><button class="filter cause-filter motivation"><span></span>Motivación</button><button class="filter cause-filter ability"><span></span>Ability</button><button class="filter cause-filter prompt"><span></span>Prompt</button></div>
-          <section class="pattern-grid">
-            <article class="pattern-card"><span class="type-badge pattern">PATRÓN</span><h2>Reducir pasos de Ability después del primer pedido</h2><div class="chip-row"><span class="chip cause ability"><span class="dot"></span>Ability</span><span class="chip neutral">Rebuscador Digital</span><span class="chip neutral">Setup → Aha</span></div><p><strong>Qué aprendimos:</strong> cuando el seller ya entendió valor, una guía asistida vence más fricción que otro recordatorio.</p><footer><a href="#">Cliff de activación post-Aha</a><span>25 jun · reutilizado 2 veces</span></footer></article>
-            <article class="pattern-card"><span class="type-badge anti">ANTI-PATRÓN</span><h2>Mandar más mensajes cuando el bloqueo es operativo</h2><div class="chip-row"><span class="chip cause prompt"><span class="dot"></span>Prompt</span><span class="chip neutral">Seller Explorador</span><span class="chip neutral">Aha → Hábito</span></div><p><strong>Qué aprendimos:</strong> aumentar prompts no compensa un setup incompleto; primero validar Ability.</p><footer><a href="#">Recompra día 7</a><span>18 jun · reutilizado 0 veces</span></footer></article>
-          </section>
+          <div id="patternFilters" class="filter-row"><button class="filter active" data-filter="all">Todos</button><button class="filter" data-filter="pattern">Patrón</button><button class="filter" data-filter="anti">Anti-patrón</button><button class="filter cause-filter motivation" data-filter="Motivación"><span></span>Motivación</button><button class="filter cause-filter ability" data-filter="Ability"><span></span>Ability</button><button class="filter cause-filter prompt" data-filter="Prompt"><span></span>Prompt</button></div>
+          <section id="patternGrid" class="pattern-grid" aria-live="polite"></section>
         </section>
 
         <section id="contextView" class="app-view context-view scrim" hidden>
@@ -227,5 +224,18 @@
     </div>
 
     <script src="app.js" type="module"></script>
-  </body>
+    <dialog id="patternDialog" class="pattern-dialog">
+    <form id="patternForm" method="dialog" class="pattern-form">
+      <p class="eyebrow">F5 · Pattern Candidate</p>
+      <h2>Guardar aprendizaje reutilizable</h2>
+      <div id="patternPreview" class="candidate-preview"></div>
+      <label>Nombre<input id="patternName" name="name" required /></label>
+      <label>Aprendizaje<textarea id="patternLearning" name="learning" required rows="4"></textarea></label>
+      <div class="pattern-actions">
+        <button class="secondary-action" type="button" data-save-pattern="anti">Guardar anti-patrón</button>
+        <button class="primary-action" type="button" data-save-pattern="pattern">Guardar patrón</button>
+      </div>
+    </form>
+  </dialog>
+</body>
 </html>
