@@ -1,0 +1,4 @@
+interface Props { onCloseGate: () => void; onAdvance: () => void; }
+export function GateWarning({ onCloseGate, onAdvance }: Props) {
+  return <article className="gate-card"><div className="gate-head"><span className="gate-icon">⚠</span><strong>Gate sin cerrar — F1 · Diagnose</strong></div><p>Antes de diseñar intervención, falta <strong>2ª fuente</strong> para confirmar que Ability es la causa principal.</p><div className="risk-box"><strong>RIESGO</strong>Diagnóstico por opinión, no por evidencia. Si Ability no es la causa real, la intervención falla y quemas un sprint.</div><div className="gate-actions"><button className="primary-action" type="button" onClick={onCloseGate}>Cerrarlo primero</button><button className="secondary-action" type="button" onClick={onAdvance}>Avanzar igual</button></div></article>;
+}
