@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "python -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check app.js"
+    "lint": "node --check app.js && node --check src/phase-engine.js && node --check src/extraction-service.js && node --check src/prompt-builder.js && node --check src/export-service.js && node --check src/api.js",
+    "test": "node scripts/test-runner.mjs",
+    "e2e": "node scripts/e2e-runner.mjs",
+    "build": "node --check app.js"
   }
 }

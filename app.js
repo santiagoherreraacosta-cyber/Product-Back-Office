@@ -1,3 +1,8 @@
+import { acceptRiskAndAdvance as advancePhases, clonePhases, DEFAULT_PHASES, selectPhase, startNewCycle } from "./src/phase-engine.js";
+import { extractBriefPatch, extractMessageIntent } from "./src/extraction-service.js";
+import { DEFAULT_PROMPTS, nextPrompt } from "./src/prompt-builder.js";
+import { buildBriefMarkdown, createMarkdownDownload } from "./src/export-service.js";
+
 const THEME_KEY = "dropi-workspace-theme";
 const RISK_KEY = "dropi-workspace-risk-accepted";
 
@@ -33,23 +38,10 @@ const briefBody = document.querySelector("#briefBody");
 const experimentBody = document.querySelector("#experimentBody");
 const paletteSearch = document.querySelector("#paletteSearch");
 
-const phaseSeed = [
-  { key: "F0", label: "Sense", state: "done" },
-  { key: "F1", label: "Diagnose", state: "active", note: "falta 2ª fuente" },
-  { key: "F2", label: "Design", state: "todo" },
-  { key: "F3", label: "Decide", state: "todo", skipped: true, note: "gate saltado" },
-  { key: "F4", label: "Deploy", state: "todo" },
-  { key: "F5", label: "Distill", state: "todo" },
-];
+const phaseSeed = DEFAULT_PHASES;
+const prompts = DEFAULT_PROMPTS;
 
-const prompts = [
-  "¿Qué comportamiento debe ocurrir, y por qué no ocurre hoy?",
-  "Trae la evidencia: ¿qué dato sostiene la causa Ability?",
-  "Si avanzas sin gate, ¿qué riesgo aceptas explícitamente?",
-  "¿Cuál sería el cambio mínimo para mover el comportamiento?",
-];
-
-let phases = structuredClone(phaseSeed);
+let phases = clonePhases(phaseSeed);
 let activePhase = "F1";
 let riskAccepted = localStorage.getItem(RISK_KEY) === "true";
 let filled = riskAccepted ? 7 : 6;
@@ -78,7 +70,7 @@ phaseStepper.addEventListener("click", (event) => {
   const row = event.target.closest("[data-phase]");
   if (!row) return;
   activePhase = row.dataset.phase;
-  phases = phases.map((phase) => ({ ...phase, state: phase.key === activePhase ? "active" : phase.state === "active" ? "todo" : phase.state }));
+  phases = selectPhase(phases, activePhase);
   renderStepper();
 });
 
@@ -143,7 +135,7 @@ document.querySelectorAll("[data-open-workspace], [data-example-cycle]").forEach
 newCycleButton?.addEventListener("click", () => {
   setView("workspace");
   activePhase = "F0";
-  phases = phases.map((phase) => ({ ...phase, state: phase.key === "F0" ? "active" : phase.key === "F1" ? "todo" : phase.state === "done" ? "todo" : phase.state }));
+  phases = startNewCycle(phases);
   renderStepper();
   addAiNote("Nuevo ciclo en F0 · Sense. Empecemos por el comportamiento: ¿qué seller, haciendo qué, no está haciendo qué?");
 });
@@ -277,23 +269,26 @@ function sendMessage() {
   messageInput.value = "";
   chatInput.classList.remove("has-text");
 
-  if (text.startsWith("/brief")) {
+  const intent = extractMessageIntent(text);
+  const patch = extractBriefPatch(text);
+
+  if (intent.type === "export_brief") {
     downloadBrief();
     addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
     return;
   }
 
-  if (text.startsWith("/experimento")) {
-    fillField(hypothesisField, "Si reducimos la configuración de envío de 7 pasos a una guía asistida, aumentará el 2º envío en 72h porque baja la fricción Ability.");
-    setBriefProgress(8);
+  if (intent.type === "experiment") {
+    fillField(hypothesisField, patch.hypothesis);
+    setBriefProgress(patch.progress);
     setDeliverable("experiment");
     addAiNote("Detecto intención de pasar a F3. Puedo ayudarte, pero dejo visible el gate F1 si no cerramos la segunda fuente.");
     return;
   }
 
-  if (/entrevista|grabaci[oó]n|segunda fuente|2ª fuente/i.test(text)) {
-    fillField(secondSource, "Entrevistas rápidas confirman bloqueo en configuración de envío · 5/7 sellers.");
-    setBriefProgress(7);
+  if (intent.type === "second_source") {
+    fillField(secondSource, patch.secondSource);
+    setBriefProgress(patch.progress);
     addAiNote("Gate F1 mucho más sólido. Ahora sí podemos diseñar una intervención mínima en F2 sin depender solo de una fuente cuantitativa.");
     return;
   }
@@ -313,11 +308,7 @@ function addAiNote(content) {
 function acceptRiskAndAdvance() {
   riskAccepted = true;
   localStorage.setItem(RISK_KEY, "true");
-  phases = phases.map((phase) => {
-    if (phase.key === "F1") return { ...phase, state: "done", note: "riesgo aceptado" };
-    if (phase.key === "F2") return { ...phase, state: "active", note: "diseñar intervención" };
-    return { ...phase, state: phase.key === "F1" ? "done" : phase.state === "active" ? "todo" : phase.state };
-  });
+  phases = advancePhases(phases);
   activePhase = "F2";
   setBriefProgress(Math.max(filled, 7));
   renderStepper();
@@ -345,19 +336,20 @@ function fillField(element, value) {
 }
 
 function downloadBrief() {
-  const markdown = `# Intervention Brief\n\n## Ciclo\nCliff de activación post-Aha\n\n## Comportamiento objetivo\nEl Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.\n\n## Causa B=MAP\nAbility — flujo de envío bloqueado\n\n## Evidencia\n- Cohorte 30d — 7 pasos para configurar envío · n=412\n- ${secondSource.textContent.trim()}\n\n## Riesgos asumidos\n${riskAccepted ? "- F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun." : "- [CONFIRMAR] Sin riesgos aceptados aún."}\n`;
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = "intervention-brief-dropi.md";
-  anchor.click();
-  URL.revokeObjectURL(url);
+  const markdown = buildBriefMarkdown({
+    cycleName: "Cliff de activación post-Aha",
+    behavior: "El Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.",
+    cause: "Ability — flujo de envío bloqueado",
+    evidence: ["Cohorte 30d — 7 pasos para configurar envío · n=412", secondSource.textContent.trim()],
+    riskAccepted,
+  });
+  createMarkdownDownload(markdown);
 }
 
 function rotatePlaceholder() {
-  promptIndex = (promptIndex + 1) % prompts.length;
-  placeholder.innerHTML = `${prompts[promptIndex]}<span class="caret"></span>`;
+  const next = nextPrompt(promptIndex, prompts);
+  promptIndex = next.index;
+  placeholder.innerHTML = `${next.text}<span class="caret"></span>`;
 }
 
 function escapeHtml(value) {
