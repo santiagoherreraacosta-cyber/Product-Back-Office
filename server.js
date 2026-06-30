@@ -77,14 +77,41 @@ function verifyToken(token) {
 }
 
 // --- Users (demo in-memory; replace with DB in production) ---
+// Passwords are loaded from environment variables — no hardcoded credentials.
+// Use scrypt (Node stdlib) for key derivation; salt is derived from the secret.
+const SCRYPT_SALT = Buffer.from(AUTH_SECRET.slice(0, 32).padEnd(32, "0"));
+
+function hashPassword(password) {
+  return crypto.scryptSync(password, SCRYPT_SALT, 64).toString("hex");
+}
+
+function verifyPassword(password, storedHash) {
+  const hash = hashPassword(password);
+  const a = Buffer.from(hash);
+  const b = Buffer.from(storedHash);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 const USERS = [
-  { id: "u1", email: "admin@dropi.co", passwordHash: crypto.createHash("sha256").update("admin123").digest("hex"), role: "admin" },
-  { id: "u2", email: "pm@dropi.co", passwordHash: crypto.createHash("sha256").update("pm123").digest("hex"), role: "pm" },
+  {
+    id: "u1",
+    email: process.env.ADMIN_EMAIL || "admin@dropi.co",
+    passwordHash: hashPassword(process.env.ADMIN_PASSWORD || crypto.randomBytes(32).toString("hex")),
+    role: "admin",
+  },
+  {
+    id: "u2",
+    email: process.env.PM_EMAIL || "pm@dropi.co",
+    passwordHash: hashPassword(process.env.PM_PASSWORD || crypto.randomBytes(32).toString("hex")),
+    role: "pm",
+  },
 ];
 
 function findUser(email, password) {
-  const hash = crypto.createHash("sha256").update(password).digest("hex");
-  return USERS.find((u) => u.email === email && u.passwordHash === hash) || null;
+  const user = USERS.find((u) => u.email === email);
+  if (!user || !verifyPassword(password, user.passwordHash)) return null;
+  return user;
 }
 
 // --- Route permissions ---
