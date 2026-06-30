@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "start": "python -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check app.js"
+    "check": "node --check app.js",
+    "db:migrate": "node server/src/db/migrate.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   }
 }
