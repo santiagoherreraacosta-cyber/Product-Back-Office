@@ -598,3 +598,19 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); font-size: 13px; font-weight: 500; padding: 10px 18px; border-radius: 8px; box-shadow: var(--shadow); z-index: 9999; animation: toast-in 200ms ease; pointer-events: none; }
 .toast.is-error { background: var(--red); color: #fff; }
 @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+/* --- B=MAP cause selector --- */
+.bmap-selector { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.bmap-btn { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; cursor: pointer; border: 1px solid var(--line); background: var(--surface2); color: var(--text2); transition: background .1s, color .1s, border-color .1s; }
+.bmap-btn[data-cause="M"].active { background: #EDE9FE; color: #7C3AED; border-color: #C4B5FD; }
+.bmap-btn[data-cause="A"].active { background: #DBEAFE; color: #1D4ED8; border-color: #BFDBFE; }
+.bmap-btn[data-cause="P"].active { background: #CCFBF1; color: #0D9488; border-color: #99F6E4; }
+
+/* --- Brief inline editing --- */
+.brief-inline-input { width: 100%; border: 1px solid var(--orange); border-radius: 6px; padding: 4px 8px; font: inherit; background: var(--bg); color: var(--text); font-size: 13px; outline: none; }
+.confirm-field { cursor: pointer; }
+.confirm-field:hover strong { text-decoration: underline; }
+
+/* --- F1→F2 advance button in conversation header --- */
+.advance-phase-btn { font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--orange); background: transparent; color: var(--orange); cursor: pointer; transition: background .1s, color .1s; white-space: nowrap; }
+.advance-phase-btn:hover { background: var(--orange); color: #fff; }

@@ -106,6 +106,7 @@
               <span id="activePhaseNote"></span>
             </div>
             <span class="cycle-name" id="activeCycleName">Sin ciclo activo</span>
+            <button id="advancePhaseBtn" class="advance-phase-btn" type="button" hidden>Avanzar a F2 ✓</button>
             <button id="commandButton" class="command-button" type="button">⌘K</button>
           </header>
 
@@ -237,6 +238,11 @@
           </div>
           <div class="brief-block">
             <p class="section-label">Causa (B=MAP)</p>
+            <div class="bmap-selector" id="briefCauseSelector">
+              <button class="bmap-btn" data-cause="M" title="El seller no quiere hacerlo — falta Motivación">M · Motivación</button>
+              <button class="bmap-btn" data-cause="A" title="El seller no puede hacerlo — falta Ability">A · Ability</button>
+              <button class="bmap-btn" data-cause="P" title="El seller no recuerda / no se le pide — falta Prompt">P · Prompt</button>
+            </div>
             <p id="briefCause" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
           </div>
           <div class="brief-block">

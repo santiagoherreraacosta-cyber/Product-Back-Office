@@ -336,6 +336,17 @@ function renderActiveCycle() {
   briefCycleTitle.textContent = cycle.title;
   // Show close panel only in F5 and only for active cycles
   if (closePanel) closePanel.hidden = !(active === "F5" && cycle.estado === "activo");
+  // Show F1→F2 advance button with appropriate label based on diagnosis quality
+  const advanceBtn = document.querySelector("#advancePhaseBtn");
+  if (advanceBtn) {
+    const showAdvance = active === "F1" && cycle.estado === "activo";
+    advanceBtn.hidden = !showAdvance;
+    if (showAdvance) {
+      const clean = !!(cycle.causa && cycle.brief?.evidencia_primaria?.confirmed);
+      advanceBtn.textContent = clean ? "Avanzar a F2 ✓" : "Avanzar a F2 con riesgo ⚠";
+      advanceBtn.dataset.clean = clean ? "1" : "";
+    }
+  }
   // Populate brief panel from real cycle data
   loadBriefFromCycle(cycle);
   // Grey out chat input for closed/discarded cycles
@@ -686,12 +697,14 @@ function addAiNote(content) {
 
 // --- Phase actions ---
 async function acceptRiskAndAdvance() {
+  const advanceBtn = document.querySelector("#advancePhaseBtn");
+  const isClean = advanceBtn?.dataset.clean === "1";
   const phases = getPhases().map((phase) => {
-    if (phase.key === "F1") return { ...phase, state: "done", note: "riesgo aceptado" };
+    if (phase.key === "F1") return { ...phase, state: "done", note: isClean ? "diagnóstico completo" : "riesgo aceptado" };
     if (phase.key === "F2") return { ...phase, state: "active", note: "diseñar intervención" };
     return { ...phase, state: phase.state === "active" ? "todo" : phase.state };
   });
-  const patch = { phases, activePhase: "F2", fase_actual: "F2", riskAccepted: true };
+  const patch = { phases, activePhase: "F2", fase_actual: "F2", riskAccepted: !isClean };
   await updateCycle(patch);
   // Update local state optimistically
   if (currentCycleId) {
@@ -700,7 +713,10 @@ async function acceptRiskAndAdvance() {
   setBriefProgress(Math.max(filled, 7));
   renderStepper();
   renderBriefState();
-  addAiNote("Avanzamos a F2 con riesgo explícito. El brief mantiene el tag para que no parezca un diagnóstico cerrado.");
+  const msg = isClean
+    ? "Diagnóstico completo. Avanzamos a F2 · Design para definir la intervención."
+    : "Avanzamos a F2 con riesgo explícito. El brief mantiene el tag para que no parezca un diagnóstico cerrado.";
+  addAiNote(msg);
 }
 
 function renderBriefState() {
@@ -719,6 +735,66 @@ function setBriefProgress(value) {
   filled = value;
   progressText.textContent = `${filled} / 11`;
   progressFill.style.width = `${Math.round((filled / 11) * 100)}%`;
+}
+
+// --- Deep merge and path utilities ---
+function deepMerge(target, source) {
+  const out = { ...target };
+  for (const k of Object.keys(source)) {
+    if (source[k] && typeof source[k] === "object" && !Array.isArray(source[k]) && target[k] && typeof target[k] === "object")
+      out[k] = deepMerge(target[k], source[k]);
+    else out[k] = source[k];
+  }
+  return out;
+}
+
+function setNestedPath(obj, path, value) {
+  const keys = path.split(".");
+  let cur = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    cur[keys[i]] = cur[keys[i]] ?? {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+}
+
+// Make a brief/experiment panel field inline-editable. cyclePath is "brief.behavior_statement", "sub_perfil", etc.
+function makeFieldEditable(el, cyclePath) {
+  if (!el) return;
+  if (el.dataset.editableRegistered) return;
+  el.dataset.editableRegistered = "1";
+  el.style.cursor = "pointer";
+  el.title = "Click para editar";
+  el.addEventListener("click", () => {
+    if (el.dataset.editing) return;
+    el.dataset.editing = "1";
+    const isConfirm = el.classList.contains("confirm-field");
+    const current = isConfirm ? "" : el.textContent.trim();
+    const input = document.createElement("input");
+    input.className = "brief-inline-input";
+    input.value = current;
+    el.replaceWith(input);
+    input.focus();
+    const save = async () => {
+      const val = input.value.trim();
+      const patch = {};
+      if (cyclePath === "sub_perfil") {
+        patch.sub_perfil = val || null;
+      } else {
+        setNestedPath(patch, cyclePath, { value: val, confirmed: !!val });
+      }
+      if (currentCycleId) {
+        cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+        try { await updateCycle(patch); } catch { /* non-blocking */ }
+      }
+      renderActiveCycle();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = current; input.blur(); }
+    });
+  });
 }
 
 // Populate a brief panel DOM element with a real value or reset to [CONFIRMAR]
@@ -741,31 +817,61 @@ function loadBriefFromCycle(cycle) {
   const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
 
   // Brief panel fields
-  setField(document.querySelector("#briefBehavior"), b.behavior_statement?.value ?? null);
-  setField(document.querySelector("#briefSubProfile"), cycle?.sub_perfil?.replace(/_/g, " ") ?? null);
-  setField(
-    document.querySelector("#briefCogLevel"),
-    b.nivel_cognitivo?.value ?? (cycle?.transicion ? cycle.transicion.replace(/_/g, "→") : null)
-  );
-  const causeValue = b.causa?.value ?? (cycle?.causa ? `${cycle.causa} · ${causeMap[cycle.causa] ?? cycle.causa}` : null);
-  setField(document.querySelector("#briefCause"), causeValue);
-  setField(document.querySelector("#briefEvidence"), b.evidencia_primaria?.value ?? null);
+  const briefBehavior = document.querySelector("#briefBehavior");
+  const briefSubProfile = document.querySelector("#briefSubProfile");
+  const briefCogLevel = document.querySelector("#briefCogLevel");
+  const briefEvidence = document.querySelector("#briefEvidence");
+
+  setField(briefBehavior, b.behavior_statement?.value ?? null);
+  setField(briefSubProfile, cycle?.sub_perfil?.replace(/_/g, " ") ?? null);
+  setField(briefCogLevel, b.nivel_cognitivo?.value ?? (cycle?.transicion ? cycle.transicion.replace(/_/g, "→") : null));
+  setField(briefEvidence, b.evidencia_primaria?.value ?? null);
   setField(secondSource, b.segunda_fuente?.value ?? null);
   setField(hypothesisField, b.hipotesis?.value ?? b.intervencion?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
+  // B=MAP selector sync
+  const activeCause = cycle?.causa;
+  document.querySelectorAll(".bmap-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.cause === activeCause));
+
   // Experiment card — all fields
   const exp = cycle?.experiment ?? {};
   const expStr = (v) => v?.value ?? (typeof v === "string" ? v : null);
-  setField(document.querySelector("#experimentHypothesis"), expStr(exp.hipotesis));
-  setField(document.querySelector("#experimentVariable"), expStr(exp.variable));
-  setField(document.querySelector("#experimentMetric"), expStr(exp.metrica_primaria));
-  setField(document.querySelector("#experimentStop"), expStr(exp.criterio_stop));
-  setField(document.querySelector("#experimentSample"), expStr(exp.tamano_muestra));
-  setField(document.querySelector("#experimentDuration"), expStr(exp.duracion));
+  const expHypothesis = document.querySelector("#experimentHypothesis");
+  const expVariable = document.querySelector("#experimentVariable");
+  const expMetric = document.querySelector("#experimentMetric");
+  const expStop = document.querySelector("#experimentStop");
+  const expSample = document.querySelector("#experimentSample");
+  const expDuration = document.querySelector("#experimentDuration");
+  const expTracking = document.querySelector("#experimentTracking");
+
+  setField(expHypothesis, expStr(exp.hipotesis));
+  setField(expVariable, expStr(exp.variable));
+  setField(expMetric, expStr(exp.metrica_primaria));
+  setField(expStop, expStr(exp.criterio_stop));
+  setField(expSample, expStr(exp.tamano_muestra));
+  setField(expDuration, expStr(exp.duracion));
   const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
     ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
-  setField(document.querySelector("#experimentTracking"), trackVal);
+  setField(expTracking, trackVal);
+
+  // Make brief fields inline-editable
+  makeFieldEditable(briefBehavior, "brief.behavior_statement");
+  makeFieldEditable(briefSubProfile, "sub_perfil");
+  makeFieldEditable(briefCogLevel, "brief.nivel_cognitivo");
+  makeFieldEditable(briefEvidence, "brief.evidencia_primaria");
+  makeFieldEditable(secondSource, "brief.segunda_fuente");
+  makeFieldEditable(hypothesisField, "brief.hipotesis");
+  makeFieldEditable(metricField, "brief.senal_cuantitativa");
+
+  // Make experiment fields inline-editable
+  makeFieldEditable(expHypothesis, "experiment.hipotesis");
+  makeFieldEditable(expVariable, "experiment.variable");
+  makeFieldEditable(expMetric, "experiment.metrica_primaria");
+  makeFieldEditable(expStop, "experiment.criterio_stop");
+  makeFieldEditable(expSample, "experiment.tamano_muestra");
+  makeFieldEditable(expDuration, "experiment.duracion");
+  makeFieldEditable(expTracking, "experiment.tracking_eventos");
 
   // Progress: count confirmed fields (max 11)
   const trackFields = [
@@ -793,7 +899,11 @@ function downloadBrief() {
   const who = currentUser?.email ?? "usuario";
   const when = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
 
-  const markdown = [
+  const exp = cycle?.experiment ?? {};
+  const expStr2 = (v) => v?.value ?? (typeof v === "string" ? v : null);
+  const hasExperiment = Object.keys(exp).some((k) => expStr2(exp[k]));
+
+  const lines = [
     `# Intervention Brief`,
     ``,
     `## Ciclo`,
@@ -814,6 +924,21 @@ function downloadBrief() {
     ``,
     `## Métrica de éxito`,
     metric,
+  ];
+
+  if (hasExperiment) {
+    lines.push(``, `## Experiment Card`);
+    if (expStr2(exp.hipotesis)) lines.push(`**Hipótesis:** ${expStr2(exp.hipotesis)}`);
+    if (expStr2(exp.variable)) lines.push(`**Variable:** ${expStr2(exp.variable)}`);
+    if (expStr2(exp.metrica_primaria)) lines.push(`**Métrica primaria:** ${expStr2(exp.metrica_primaria)}`);
+    if (expStr2(exp.criterio_stop)) lines.push(`**Criterio de stop:** ${expStr2(exp.criterio_stop)}`);
+    if (expStr2(exp.tamano_muestra) || expStr2(exp.duracion))
+      lines.push(`**Muestra:** ${expStr2(exp.tamano_muestra) || "—"} · **Duración:** ${expStr2(exp.duracion) || "—"}`);
+    if (exp.tracking_eventos?.length)
+      lines.push(`**Tracking:** ${Array.isArray(exp.tracking_eventos) ? exp.tracking_eventos.join(", ") : exp.tracking_eventos}`);
+  }
+
+  lines.push(
     ``,
     `## Riesgos asumidos`,
     isRiskAccepted()
@@ -822,7 +947,9 @@ function downloadBrief() {
     ``,
     `---`,
     `*Exportado por ${who} · ${when}*`,
-  ].join("\n");
+  );
+
+  const markdown = lines.join("\n");
 
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -869,6 +996,24 @@ logoutButton?.addEventListener("click", logout);
 themeToggle?.addEventListener("click", () => {
   const next = workspace.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(next);
+});
+
+// B=MAP cause selector
+document.querySelector("#briefCauseSelector")?.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".bmap-btn");
+  if (!btn || !currentCycleId) return;
+  const cause = btn.dataset.cause;
+  document.querySelectorAll(".bmap-btn").forEach((b) => b.classList.toggle("active", b === btn));
+  const patch = { causa: cause, causa_source: "pm_confirmed", brief: { causa: { value: cause, confirmed: true } } };
+  cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
+  await updateCycle(patch);
+  renderActiveCycle();
+});
+
+// F1→F2 advance button
+document.querySelector("#advancePhaseBtn")?.addEventListener("click", () => {
+  if (!getCurrentCycle()) return;
+  acceptRiskAndAdvance();
 });
 
 phaseStepper?.addEventListener("click", async (event) => {
