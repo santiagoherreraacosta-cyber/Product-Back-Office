@@ -189,9 +189,9 @@ function renderContextDocuments(data) {
   contextDocuments.innerHTML = data.documents
     .map((doc) => `
       <section class="context-document" data-context-id="${escapeHtml(doc.id)}">
-        <header><h2>${escapeHtml(doc.title)}</h2><span>v${doc.version} · ${doc.pendingCount} pendientes</span></header>
+        <header><h2>${escapeHtml(doc.title)}</h2><span>v${escapeHtml(String(doc.version))} · ${escapeHtml(String(doc.pendingCount))} pendientes</span></header>
         <textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>
-        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${new Date(doc.updatedAt).toLocaleString("es-CO")}</span><button class="secondary-action" type="button" data-save-context>Guardar como admin</button></footer>
+        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context>Guardar como admin</button></footer>
       </section>`)
     .join("");
   contextDocuments.querySelectorAll("[data-save-context]").forEach((button) => {
@@ -239,12 +239,12 @@ function renderStepper() {
     .map((phase, index) => {
       const statusMark = phase.state === "done" ? "✓" : index;
       const skipped = phase.skipped ? '<span class="skipped-pin" aria-label="gate saltado"></span>' : "";
-      const note = phase.note ? `<span class="phase-note">${phase.note}</span>` : "";
+      const note = phase.note ? `<span class="phase-note">${escapeHtml(phase.note)}</span>` : "";
       return `
-        <button class="phase-row ${phase.state} ${phase.skipped ? "skipped" : ""}" type="button" data-phase="${phase.key}">
+        <button class="phase-row ${phase.state} ${phase.skipped ? "skipped" : ""}" type="button" data-phase="${escapeHtml(phase.key)}">
           <span class="phase-dot">${statusMark}</span>
           <span class="phase-copy">
-            <span class="phase-label-line"><strong>${phase.key} ${phase.label}</strong>${skipped}</span>
+            <span class="phase-label-line"><strong>${escapeHtml(phase.key)} ${escapeHtml(phase.label)}</strong>${skipped}</span>
             ${note}
           </span>
         </button>`;
