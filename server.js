@@ -89,36 +89,34 @@ function verifyToken(token) {
 }
 
 // --- Users (demo in-memory; replace with DB in production) ---
-// Passwords are loaded from environment variables — no hardcoded credentials.
-// Use scrypt (Node stdlib) for key derivation; salt is derived from the secret.
-const SCRYPT_SALT = Buffer.from(AUTH_SECRET.slice(0, 32).padEnd(32, "0"));
-
+// Passwords loaded from env vars. Each hash uses a random 16-byte salt (S2053: unpredictable salts).
+// Format stored: "<saltHex>:<hashHex>" so salt travels with the hash.
 function hashPassword(password) {
-  return crypto.scryptSync(password, SCRYPT_SALT, 64).toString("hex");
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(password, salt, 64);
+  return `${salt.toString("hex")}:${hash.toString("hex")}`;
 }
 
 function verifyPassword(password, storedHash) {
-  const hash = hashPassword(password);
-  const a = Buffer.from(hash);
-  const b = Buffer.from(storedHash);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  const [saltHex, hashHex] = storedHash.split(":");
+  if (!saltHex || !hashHex) return false;
+  const salt = Buffer.from(saltHex, "hex");
+  const expected = crypto.scryptSync(password, salt, 64);
+  const actual = Buffer.from(hashHex, "hex");
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
+}
+
+function makeUser(id, emailEnv, emailDefault, passwordEnv, role) {
+  const password = process.env[passwordEnv];
+  if (!password) return null; // login disabled when env var not set
+  return { id, email: process.env[emailEnv] || emailDefault, passwordHash: hashPassword(password), role };
 }
 
 const USERS = [
-  {
-    id: "u1",
-    email: process.env.ADMIN_EMAIL || "admin@dropi.co",
-    passwordHash: hashPassword(process.env.ADMIN_PASSWORD || crypto.randomBytes(32).toString("hex")),
-    role: "admin",
-  },
-  {
-    id: "u2",
-    email: process.env.PM_EMAIL || "pm@dropi.co",
-    passwordHash: hashPassword(process.env.PM_PASSWORD || crypto.randomBytes(32).toString("hex")),
-    role: "pm",
-  },
-];
+  makeUser("u1", "ADMIN_EMAIL", "admin@dropi.co", "ADMIN_PASSWORD", "admin"),
+  makeUser("u2", "PM_EMAIL", "pm@dropi.co", "PM_PASSWORD", "pm"),
+].filter(Boolean);
 
 function findUser(email, password) {
   const user = USERS.find((u) => u.email === email);
@@ -344,13 +342,20 @@ async function handle(req, res) {
     return json(res, auditEvents.slice(-limit).reverse());
   }
 
-  // --- Static file serving with path traversal protection ---
+  // --- Static file serving ---
   if (req.method !== "GET") return json(res, { error: "Method not allowed" }, 405);
-  const requested = pathname === "/" ? "/index.html" : pathname;
-  const filePath = path.normalize(path.join(ROOT, requested));
-  if (!filePath.startsWith(ROOT + path.sep) && filePath !== ROOT) return json(res, { error: "Forbidden" }, 403);
+  const staticRoot = path.resolve(ROOT);
+  // Only serve files with known safe extensions — prevents leaking .env, .json data files, etc.
+  const reqExt = path.extname(pathname).toLowerCase();
+  if (pathname !== "/" && !TYPES[reqExt]) return json(res, { error: "Not found" }, 404);
+  // path.resolve canonicalizes the path (resolves ..), then we verify it stays inside staticRoot
+  const relativePart = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const filePath = path.resolve(staticRoot, relativePart);
+  if (!filePath.startsWith(staticRoot + path.sep) && filePath !== staticRoot) {
+    return json(res, { error: "Forbidden" }, 403);
+  }
   const content = await fs.readFile(filePath);
-  res.writeHead(200, { "Content-Type": TYPES[path.extname(filePath)] || "application/octet-stream" });
+  res.writeHead(200, { "Content-Type": TYPES[reqExt] || "application/octet-stream" });
   res.end(content);
 }
 
