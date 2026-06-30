@@ -319,7 +319,7 @@ function renderGateCard() {
     </article>`;
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
   const inner = messageStream.querySelector(".stream-inner");
@@ -341,14 +341,26 @@ function sendMessage() {
     return;
   }
 
-  if (/entrevista|grabaci[oó]n|segunda fuente|2ª fuente/i.test(text)) {
-    fillField(secondSource, "Entrevistas rápidas confirman bloqueo en configuración de envío · 5/7 sellers.");
-    setBriefProgress(7);
-    addAiNote("Gate F1 mucho más sólido. Ahora sí podemos diseñar una intervención mínima en F2 sin depender solo de una fuente cuantitativa.");
-    return;
-  }
+  // Insert placeholder while waiting for LLM
+  inner.insertAdjacentHTML(
+    "beforeend",
+    `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p>…</p></div></article>`
+  );
+  messageStream.scrollTop = messageStream.scrollHeight;
+  const placeholder = inner.querySelector(".ai-message:last-child .ai-body p");
 
-  addAiNote("Lo tomo como nueva evidencia conversacional. Para que entre al brief, dime si es comportamiento objetivo, evidencia, hipótesis o métrica de éxito.");
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text }),
+    });
+    const data = await res.json();
+    placeholder.textContent = data.reply ?? data.error ?? "Sin respuesta.";
+  } catch {
+    placeholder.textContent = "Error de conexión con el asistente.";
+  }
+  messageStream.scrollTop = messageStream.scrollHeight;
 }
 
 function addAiNote(content) {

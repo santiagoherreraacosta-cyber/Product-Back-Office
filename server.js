@@ -29,6 +29,7 @@ const cycles = new Map();
 const rateBuckets = new Map();
 let auditEvents = [];
 let patterns = [];
+let systemPrompt = "";
 
 // Load persisted data at startup (best-effort; missing files are expected on first run)
 async function loadData() {
@@ -43,6 +44,17 @@ async function loadData() {
     patterns = JSON.parse(raw);
   } catch (err) {
     if (err.code !== "ENOENT") console.warn("Could not load patterns.json:", err.message);
+  }
+  try {
+    const raw = await fs.readFile(path.join(ROOT, "data/cycles.json"), "utf8");
+    JSON.parse(raw).forEach((c) => cycles.set(c.id, c));
+  } catch (err) {
+    if (err.code !== "ENOENT") console.warn("Could not load cycles.json:", err.message);
+  }
+  try {
+    systemPrompt = await fs.readFile(path.join(ROOT, "00_Orquestador.md"), "utf8");
+  } catch {
+    systemPrompt = "Eres Dropi, un asistente de producto experto en metodología B=MAP.";
   }
 }
 
@@ -59,6 +71,14 @@ async function persistPatterns() {
     await fs.writeFile(path.join(ROOT, "data/patterns.json"), JSON.stringify(patterns, null, 2));
   } catch (err) {
     console.warn("Could not persist patterns.json:", err.message);
+  }
+}
+
+async function persistCycles() {
+  try {
+    await fs.writeFile(path.join(ROOT, "data/cycles.json"), JSON.stringify(Array.from(cycles.values()), null, 2));
+  } catch (err) {
+    console.warn("Could not persist cycles.json:", err.message);
   }
 }
 
@@ -132,6 +152,8 @@ const routePermissions = {
   // Context: public read, legacy X-Admin-Role write (vanilla UI has no JWT flow)
   "GET /api/context": null,
   "PATCH /api/context": null,
+  // Chat: public (frontend has no JWT flow yet; rate limiting still applies)
+  "POST /api/chat": null,
   "GET /api/cycles": ["admin", "pm", "viewer"],
   "POST /api/cycles": ["admin", "pm"],
   "PATCH /api/cycles": ["admin", "pm"],
@@ -267,6 +289,7 @@ async function handle(req, res) {
     if (!body.title) return json(res, { error: "title required" }, 400);
     const cycle = { id: `cycle-${crypto.randomUUID()}`, ...body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: currentUser?.sub };
     cycles.set(cycle.id, cycle);
+    void persistCycles();
     logAudit(currentUser?.email, "cycle_created", cycle.id);
     return json(res, cycle, 201);
   }
@@ -284,12 +307,14 @@ async function handle(req, res) {
       const body = await readBody(req);
       const updated = { ...cycle, ...body, id: cycleId, updatedAt: new Date().toISOString() };
       cycles.set(cycleId, updated);
+      void persistCycles();
       logAudit(currentUser?.email, "cycle_updated", cycleId);
       return json(res, updated);
     }
     if (req.method === "DELETE") {
       if (!cycles.has(cycleId)) return json(res, { error: "Not found" }, 404);
       cycles.delete(cycleId);
+      void persistCycles();
       logAudit(currentUser?.email, "cycle_deleted", cycleId);
       return json(res, { ok: true });
     }
@@ -334,6 +359,46 @@ async function handle(req, res) {
       logAudit(currentUser?.email, "pattern_reused", patId, { newId: reuse.id });
       return json(res, reuse, 201);
     }
+  }
+
+  // --- Chat endpoint (LLM via Anthropic API) ---
+  if (req.method === "POST" && pathname === "/api/chat") {
+    const body = await readBody(req);
+    const { message, cycleId } = body;
+    if (!message) return json(res, { error: "message required" }, 400);
+
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) {
+      return json(res, { reply: "[LLM no configurado — agrega ANTHROPIC_API_KEY al .env] " + message });
+    }
+
+    const cycle = cycleId ? cycles.get(cycleId) : null;
+    const cycleContext = cycle ? `\n\n## Ciclo activo\n${JSON.stringify(cycle, null, 2)}` : "";
+
+    const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+        max_tokens: 1024,
+        system: systemPrompt + cycleContext,
+        messages: [{ role: "user", content: message }],
+      }),
+    });
+
+    if (!llmRes.ok) {
+      const err = await llmRes.json().catch(() => ({}));
+      console.error("Anthropic API error:", err);
+      return json(res, { error: "LLM request failed", detail: err?.error?.message ?? llmRes.status }, 502);
+    }
+
+    const data = await llmRes.json();
+    const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
+    return json(res, { reply });
   }
 
   // --- Audit events (PR #12) ---
