@@ -147,7 +147,7 @@
               <span class="deliverable-switch"><button id="briefSwitch" class="active" type="button">Brief</button><button id="experimentSwitch" type="button">Experiment Card</button></span>
               <span class="live-badge"><span class="dot"></span>En vivo</span>
             </div>
-            <button id="exportBrief" class="export-button" type="button">↧ Exportar brief</button>
+            <button id="exportBrief" class="export-button" type="button">↧ Exportar</button>
           </div>
           <div class="progress-row">
             <div class="progress-track"><span id="briefProgressFill"></span></div>
@@ -209,6 +209,33 @@
           </div>
         </footer>
       </aside>
+    </div>
+
+
+    <div id="exportModal" class="export-modal" hidden>
+      <section class="export-card scrim" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+        <header class="export-head">
+          <div>
+            <p class="section-label">Export</p>
+            <h2 id="exportTitle">Exportar entregable</h2>
+            <p>Preview con campos <strong>[CONFIRMAR]</strong>, riesgos asumidos y riesgos resueltos visibles.</p>
+          </div>
+          <button id="closeExportModal" class="icon-button" type="button" aria-label="Cerrar export">×</button>
+        </header>
+        <label class="export-select-label" for="exportType">Tipo de exportación</label>
+        <select id="exportType" class="export-select">
+          <option value="brief">Intervention Brief Markdown</option>
+          <option value="experiment">Experiment Card Markdown</option>
+          <option value="summary">Resumen ejecutivo</option>
+          <option value="full-cycle">Ciclo completo: conversación, riesgos, evidencia y decisión</option>
+        </select>
+        <pre id="exportPreview" class="export-preview"></pre>
+        <footer class="export-actions">
+          <button id="copyMarkdown" class="secondary-action" type="button">Copiar Markdown</button>
+          <button id="downloadMarkdown" class="secondary-action" type="button">Descargar Markdown</button>
+          <button id="downloadPdf" class="primary-action" type="button">Descargar PDF</button>
+        </footer>
+      </section>
     </div>
 
     <div id="commandPalette" class="palette" hidden>

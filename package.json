@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "python -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check app.js"
+    "check": "node --check app.js",
+    "test": "node --test"
   }
 }

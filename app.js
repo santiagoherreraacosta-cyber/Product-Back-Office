@@ -1,3 +1,4 @@
+import { createDefaultExportState, generateInterventionBriefMarkdown, generateExperimentCardMarkdown, generateExecutiveSummaryMarkdown, generateFullCycleMarkdown, createPdfDownload } from "./server/src/services/exportService.js";
 const THEME_KEY = "dropi-workspace-theme";
 const RISK_KEY = "dropi-workspace-risk-accepted";
 
@@ -14,6 +15,13 @@ const themeToggle = document.querySelector("#themeToggle");
 const commandButton = document.querySelector("#commandButton");
 const commandPalette = document.querySelector("#commandPalette");
 const exportBrief = document.querySelector("#exportBrief");
+const exportModal = document.querySelector("#exportModal");
+const exportPreview = document.querySelector("#exportPreview");
+const exportType = document.querySelector("#exportType");
+const copyMarkdown = document.querySelector("#copyMarkdown");
+const downloadMarkdown = document.querySelector("#downloadMarkdown");
+const downloadPdf = document.querySelector("#downloadPdf");
+const closeExportModal = document.querySelector("#closeExportModal");
 const progressFill = document.querySelector("#briefProgressFill");
 const progressText = document.querySelector("#briefProgressText");
 const riskTag = document.querySelector("#riskTag");
@@ -116,7 +124,7 @@ commandPalette.addEventListener("click", (event) => {
   if (!command) return;
   if (["home", "workspace", "library", "context"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
-  if (command === "brief") downloadBrief();
+  if (command === "brief") openExportModal("brief");
   if (command === "experiment") setDeliverable("experiment");
   if (command === "advance") acceptRiskAndAdvance();
   commandPalette.hidden = true;
@@ -130,7 +138,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") commandPalette.hidden = true;
 });
 
-exportBrief.addEventListener("click", downloadBrief);
+exportBrief.addEventListener("click", () => openExportModal(deliverable));
+closeExportModal?.addEventListener("click", () => exportModal.hidden = true);
+exportModal?.addEventListener("click", (event) => { if (event.target === exportModal) exportModal.hidden = true; });
+exportType?.addEventListener("change", renderExportPreview);
+copyMarkdown?.addEventListener("click", copyExportMarkdown);
+downloadMarkdown?.addEventListener("click", () => downloadText(getExportMarkdown(), `${exportType.value}-dropi.md`, "text/markdown;charset=utf-8"));
+downloadPdf?.addEventListener("click", downloadExportPdf);
 
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
@@ -278,8 +292,8 @@ function sendMessage() {
   chatInput.classList.remove("has-text");
 
   if (text.startsWith("/brief")) {
-    downloadBrief();
-    addAiNote("Brief exportado en Markdown. También queda vivo en el panel derecho.");
+    openExportModal("brief");
+    addAiNote("Abrí el modal de exportación con preview, copia Markdown y descarga PDF.");
     return;
   }
 
@@ -344,15 +358,61 @@ function fillField(element, value) {
   setTimeout(() => element.classList.remove("fillpop"), 700);
 }
 
-function downloadBrief() {
-  const markdown = `# Intervention Brief\n\n## Ciclo\nCliff de activación post-Aha\n\n## Comportamiento objetivo\nEl Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.\n\n## Causa B=MAP\nAbility — flujo de envío bloqueado\n\n## Evidencia\n- Cohorte 30d — 7 pasos para configurar envío · n=412\n- ${secondSource.textContent.trim()}\n\n## Riesgos asumidos\n${riskAccepted ? "- F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun." : "- [CONFIRMAR] Sin riesgos aceptados aún."}\n`;
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+function collectExportState() {
+  const base = createDefaultExportState({
+    evidence: ["Cohorte 30d — 7 pasos para configurar envío · n=412", secondSource.textContent.trim()],
+    hypothesis: hypothesisField.textContent.trim() || "[CONFIRMAR] Se define en F2 · Design",
+    metric: metricField.textContent.trim() || "[CONFIRMAR] Métrica primaria pendiente",
+    risks: {
+      assumed: riskAccepted ? [riskTag.textContent.trim()] : ["[CONFIRMAR] Sin riesgos aceptados aún."],
+      resolved: secondSource.textContent.includes("[CONFIRMAR]") ? ["[CONFIRMAR] Segunda fuente pendiente."] : ["Segunda fuente resuelta: entrevistas rápidas confirman bloqueo en configuración de envío."],
+    },
+    decision: riskAccepted ? "Avanzar a F2 con riesgo F1 explícito; F3 sigue [CONFIRMAR]." : "[CONFIRMAR] No avanzar a F3 hasta cerrar F1.",
+  });
+  return base;
+}
+
+function getExportMarkdown() {
+  const state = collectExportState();
+  const type = exportType?.value || "brief";
+  if (type === "experiment") return generateExperimentCardMarkdown(state);
+  if (type === "summary") return generateExecutiveSummaryMarkdown(state);
+  if (type === "full-cycle") return generateFullCycleMarkdown(state);
+  return generateInterventionBriefMarkdown(state);
+}
+
+function openExportModal(type = "brief") {
+  exportType.value = type;
+  exportModal.hidden = false;
+  renderExportPreview();
+}
+
+function renderExportPreview() {
+  exportPreview.textContent = getExportMarkdown();
+}
+
+async function copyExportMarkdown() {
+  const markdown = getExportMarkdown();
+  await navigator.clipboard.writeText(markdown);
+  copyMarkdown.textContent = "Copiado";
+  setTimeout(() => copyMarkdown.textContent = "Copiar Markdown", 1200);
+}
+
+function downloadText(content, filename, type) {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "intervention-brief-dropi.md";
+  anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadExportPdf() {
+  const blob = createPdfDownload(getExportMarkdown(), "Export Dropi");
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 function rotatePlaceholder() {

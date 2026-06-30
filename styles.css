@@ -445,3 +445,54 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .palette-input { min-width: 100%; }
 .palette-card button.is-hidden { display: none; }
 @media (max-width: 1120px) { .cycle-grid, .pattern-grid { grid-template-columns: 1fr; } .context-view { grid-template-columns: 1fr; } .toc { display: none; } }
+
+.export-modal {
+  align-items: center;
+  background: rgba(15, 23, 42, .42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 50;
+}
+.export-modal[hidden] { display: none; }
+.export-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.24);
+  display: grid;
+  gap: 14px;
+  max-height: min(760px, 92vh);
+  max-width: 860px;
+  overflow: auto;
+  padding: 18px;
+  width: min(860px, 96vw);
+}
+.export-head { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
+.export-head h2 { font-size: 20px; margin: 0 0 4px; }
+.export-head p:not(.section-label) { color: var(--text2); margin: 0; }
+.export-select-label { color: var(--text2); font-size: 12px; font-weight: 700; }
+.export-select {
+  background: var(--elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 10px 12px;
+}
+.export-preview {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  max-height: 440px;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+.export-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
