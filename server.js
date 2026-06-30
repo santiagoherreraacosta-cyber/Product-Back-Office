@@ -345,17 +345,17 @@ async function handle(req, res) {
   // --- Static file serving ---
   if (req.method !== "GET") return json(res, { error: "Method not allowed" }, 405);
   const staticRoot = path.resolve(ROOT);
-  // Only serve files with known safe extensions — prevents leaking .env, .json data files, etc.
-  const reqExt = path.extname(pathname).toLowerCase();
-  if (pathname !== "/" && !TYPES[reqExt]) return json(res, { error: "Not found" }, 404);
-  // path.resolve canonicalizes the path (resolves ..), then we verify it stays inside staticRoot
   const relativePart = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  // Only serve files with known safe extensions — prevents leaking .env, data files, etc.
+  const reqExt = path.extname(relativePart).toLowerCase();
+  if (!TYPES[reqExt]) return json(res, { error: "Not found" }, 404);
+  // path.resolve canonicalizes the path (resolves ..), then we verify it stays inside staticRoot
   const filePath = path.resolve(staticRoot, relativePart);
-  if (!filePath.startsWith(staticRoot + path.sep) && filePath !== staticRoot) {
+  if (!filePath.startsWith(staticRoot + path.sep)) {
     return json(res, { error: "Forbidden" }, 403);
   }
   const content = await fs.readFile(filePath);
-  res.writeHead(200, { "Content-Type": TYPES[reqExt] || "application/octet-stream" });
+  res.writeHead(200, { "Content-Type": TYPES[reqExt] });
   res.end(content);
 }
 
