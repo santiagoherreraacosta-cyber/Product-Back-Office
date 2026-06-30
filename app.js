@@ -181,7 +181,11 @@ async function init() {
 async function loadInitialData() {
   await Promise.all([loadCycles(), loadPatterns()]);
   renderStepper();
-  renderMessages();
+  if (currentCycleId) {
+    loadMessages(currentCycleId);
+  } else {
+    renderMessages([]);
+  }
   setView("workspace");
   renderBriefState();
 }
@@ -260,14 +264,24 @@ function renderCyclesList() {
       const phases = cycle.phases ?? phaseSeed;
       const active = cycle.activePhase ?? "F0";
       const activePhaseObj = phases.find((p) => p.key === active) ?? phases[0];
-      const miniDots = phases
-        .map((p) => `<span class="${p.state}"></span>`)
-        .join("");
-      const since = new Date(cycle.updatedAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+      const miniDots = phases.map((p) => `<span class="${p.state}"></span>`).join("");
+      const since = new Date(cycle.updatedAt ?? cycle.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+      const causeLabel = cycle.causa === "M" ? "Motivación" : cycle.causa === "A" ? "Ability" : cycle.causa === "P" ? "Prompt" : null;
+      const chips = [
+        cycle.sub_perfil ? `<span class="chip">${escapeHtml(cycle.sub_perfil.replace(/_/g, " "))}</span>` : "",
+        causeLabel ? `<span class="chip cause-chip ${escapeHtml(cycle.causa)}">${escapeHtml(causeLabel)}</span>` : "",
+        cycle.transicion ? `<span class="chip">${escapeHtml(cycle.transicion.replace(/_/g, "→"))}</span>` : "",
+      ].join("");
+      const statusPill = cycle.estado === "cerrado"
+        ? '<span class="status-pill closed">Cerrado</span>'
+        : cycle.estado === "descartado"
+          ? '<span class="status-pill discarded">Descartado</span>'
+          : '<span class="status-pill live">En curso</span>';
       return `
         <article class="dashboard-card ${cycle.id === currentCycleId ? "is-active" : ""}" data-cycle-id="${escapeHtml(cycle.id)}">
-          <div class="card-topline"><span class="status-pill live">En curso</span><span>${escapeHtml(since)}</span></div>
+          <div class="card-topline">${statusPill}<span>${escapeHtml(since)}</span></div>
           <h2>${escapeHtml(cycle.title)}</h2>
+          ${chips ? `<div class="chips">${chips}</div>` : ""}
           <div class="mini-stepper" aria-label="Fases F0 a F5">${miniDots}</div>
           <footer><strong>${escapeHtml(activePhaseObj.key)} · ${escapeHtml(activePhaseObj.label)}</strong>${cycle.riskAccepted ? '<span class="risk-count">riesgo abierto</span>' : ""}</footer>
         </article>`;
@@ -281,6 +295,7 @@ function renderCyclesList() {
       renderActiveCycle();
       renderStepper();
       renderBriefState();
+      loadMessages(currentCycleId);
       setView("workspace");
     });
   });
@@ -288,22 +303,91 @@ function renderCyclesList() {
 
 function renderActiveCycle() {
   const cycle = getCurrentCycle();
+  const closePanel = document.getElementById("closePanel");
   if (!cycle) {
     activeCycleCard.innerHTML = `<p class="muted">Sin ciclo activo</p>`;
     activeCycleName.textContent = "Sin ciclo activo";
     activePhaseLabel.textContent = "—";
     activePhaseNote.textContent = "";
     briefCycleTitle.textContent = "[CONFIRMAR]";
+    if (closePanel) closePanel.hidden = true;
     return;
   }
   const phases = cycle.phases ?? phaseSeed;
-  const active = cycle.activePhase ?? "F0";
+  const active = cycle.fase_actual ?? cycle.activePhase ?? "F0";
   const activePhaseObj = phases.find((p) => p.key === active) ?? phases[0];
   activeCycleCard.innerHTML = `<h2>${escapeHtml(cycle.title)}</h2>`;
   activeCycleName.textContent = cycle.title;
   activePhaseLabel.textContent = `${activePhaseObj.key} · ${activePhaseObj.label}`;
   activePhaseNote.textContent = activePhaseObj.note || "gate abierto";
   briefCycleTitle.textContent = cycle.title;
+  // Show close panel only in F5 and only for active cycles
+  if (closePanel) closePanel.hidden = !(active === "F5" && cycle.estado === "activo");
+}
+
+async function reusePattern(patternId) {
+  try {
+    const res = await fetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
+    if (!res.ok) return;
+    const { newCycle } = await res.json();
+    // Refresh patterns to get updated veces_reutilizado
+    await loadPatterns();
+    cycles.push(newCycle);
+    currentCycleId = newCycle.id;
+    renderCyclesList();
+    renderActiveCycle();
+    renderStepper();
+    renderBriefState();
+    renderMessages([]);
+    addAiNote(`Reutilizando patrón: "${escapeHtml(newCycle.title)}". Confirma el contexto y ajusta la hipótesis antes de avanzar.`);
+    setView("workspace");
+  } catch {
+    console.warn("No se pudo reutilizar el patrón.");
+  }
+}
+
+async function closeCycle() {
+  const closureDecision = document.getElementById("closureDecision");
+  const closureLearning = document.getElementById("closureLearning");
+  const closureDelta = document.getElementById("closureDelta");
+  const patternName = document.getElementById("patternName");
+  const patternType = document.getElementById("patternType");
+  const learning = closureLearning?.value.trim() ?? "";
+  const pattern_name = patternName?.value.trim() ?? "";
+  if (!learning || !pattern_name) {
+    alert("Completa el aprendizaje y el nombre del patrón para cerrar el ciclo.");
+    return;
+  }
+  try {
+    const res = await fetch(`/api/cycles/${currentCycleId}/close`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        resultado_cierre: closureDecision?.value ?? "escalado",
+        decision: closureDecision?.value ?? "escalado",
+        learning,
+        delta: closureDelta?.value.trim() ?? null,
+        pattern_name,
+        tipo: patternType?.value ?? "patron",
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error ?? "Error al cerrar el ciclo.");
+      return;
+    }
+    const { cycle, pattern } = await res.json();
+    cycles = cycles.map((c) => (c.id === cycle.id ? cycle : c));
+    patterns.push(pattern);
+    renderCyclesList();
+    renderPatternsList();
+    renderActiveCycle();
+    renderStepper();
+    addAiNote(`Ciclo cerrado. Patrón "${escapeHtml(pattern.nombre)}" creado en la Biblioteca.`);
+    setView("home");
+  } catch {
+    console.warn("No se pudo cerrar el ciclo.");
+  }
 }
 
 // --- Patterns ---
@@ -318,26 +402,40 @@ async function loadPatterns() {
   }
 }
 
-function renderPatternsList() {
-  if (!patterns.length) {
+function renderPatternsList(list = patterns) {
+  if (!list.length) {
     patternsList.innerHTML = `<p class="empty-library">Aún no hay patrones. Cierra tu primer ciclo en F5 y aparecerá aquí.</p>`;
     return;
   }
-  patternsList.innerHTML = patterns
+  const causeLabel = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
+  patternsList.innerHTML = list
     .map((p) => {
-      const isAnti = p.type === "anti-pattern";
-      const badgeClass = isAnti ? "anti" : "pattern";
-      const badgeText = isAnti ? "ANTI-PATRÓN" : "PATRÓN";
+      const isAnti = p.tipo === "anti_patron";
       const since = p.createdAt ? new Date(p.createdAt).toLocaleDateString("es-CO", { day: "numeric", month: "short" }) : "";
+      const chips = [
+        p.causa ? `<span class="chip cause-chip ${escapeHtml(p.causa)}">${escapeHtml(causeLabel(p.causa))}</span>` : "",
+        p.sub_perfil ? `<span class="chip">${escapeHtml(p.sub_perfil.replace(/_/g, " "))}</span>` : "",
+        p.transicion ? `<span class="chip">${escapeHtml(p.transicion.replace(/_/g, "→"))}</span>` : "",
+      ].join("");
       return `
         <article class="pattern-card">
-          <span class="type-badge ${badgeClass}">${badgeText}</span>
-          <h2>${escapeHtml(p.name)}</h2>
-          ${p.description ? `<p>${escapeHtml(p.description)}</p>` : ""}
-          <footer><span>${escapeHtml(since)}</span></footer>
+          <span class="pattern-badge ${isAnti ? "anti_patron" : "patron"}">${isAnti ? "Anti-patrón" : "Patrón"}</span>
+          <h2>${escapeHtml(p.nombre ?? p.name ?? "Sin nombre")}</h2>
+          ${p.aprendizaje ? `<p class="pattern-learning">${escapeHtml(p.aprendizaje)}</p>` : ""}
+          ${chips ? `<div class="chips">${chips}</div>` : ""}
+          ${p.delta_metrica ? `<span class="delta">${escapeHtml(p.delta_metrica)}</span>` : ""}
+          <footer>
+            <span class="reuse-count">${p.veces_reutilizado ?? 0}× reutilizado</span>
+            <span>${escapeHtml(since)}</span>
+            <button class="reuse-btn" type="button" data-pattern-id="${escapeHtml(p.id)}">Reusar →</button>
+          </footer>
         </article>`;
     })
     .join("");
+
+  patternsList.querySelectorAll(".reuse-btn").forEach((btn) => {
+    btn.addEventListener("click", () => reusePattern(btn.dataset.patternId));
+  });
 }
 
 // --- View ---
@@ -453,14 +551,33 @@ function renderStepper() {
 }
 
 // --- Messages ---
-function renderMessages() {
-  const cycle = getCurrentCycle();
+function loadMessages(cycleId) {
+  const cycle = cycles.find((c) => c.id === cycleId);
+  const msgs = cycle?.messages ?? [];
+  renderMessages(msgs);
+}
+
+function renderMessages(msgs) {
   messageStream.innerHTML = `<div class="stream-inner"></div>`;
-  if (!cycle) {
-    addAiNote("Bienvenido. Crea un nuevo ciclo desde Ciclos o usa /nuevo-ciclo para empezar.");
-  } else {
-    addAiNote(`Ciclo cargado: "${escapeHtml(cycle.title)}" · ${escapeHtml(cycle.activePhase ?? "F0")}. ¿Cómo te puedo ayudar?`);
+  const inner = messageStream.querySelector(".stream-inner");
+  if (!msgs || !msgs.length) {
+    const cycle = getCurrentCycle();
+    if (!cycle) {
+      addAiNote("Bienvenido. Crea un nuevo ciclo desde Ciclos o usa /nuevo-ciclo para empezar.");
+    } else {
+      addAiNote(`Ciclo: "${escapeHtml(cycle.title)}" · ${escapeHtml(cycle.fase_actual ?? cycle.activePhase ?? "F0")}. ¿Cómo te puedo ayudar?`);
+    }
+    return;
   }
+  msgs.forEach((m) => {
+    if (m.role === "user") {
+      inner.insertAdjacentHTML("beforeend", `<div class="user-message">${escapeHtml(m.content)}</div>`);
+    } else {
+      inner.insertAdjacentHTML("beforeend",
+        `<article class="ai-message"><div class="ai-avatar">D</div><div class="ai-body"><p>${escapeHtml(m.content)}</p></div></article>`);
+    }
+  });
+  messageStream.scrollTop = messageStream.scrollHeight;
 }
 
 // --- Chat ---
@@ -724,6 +841,22 @@ newCycleEmpty?.addEventListener("click", () => {
 
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
+
+// Library filters (in-memory, no fetch)
+document.querySelector(".filter-row")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".filter");
+  if (!btn) return;
+  document.querySelectorAll(".filter").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  const f = btn.dataset.filter ?? "all";
+  const filtered = f === "all" ? patterns
+    : (f === "patron" || f === "anti_patron") ? patterns.filter((p) => p.tipo === f)
+    : patterns.filter((p) => (p.causa ?? "").toUpperCase() === f.toUpperCase());
+  renderPatternsList(filtered);
+});
+
+// Close cycle button
+document.getElementById("closeCycleButton")?.addEventListener("click", closeCycle);
 
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();

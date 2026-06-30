@@ -571,3 +571,34 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .dashboard-card.is-active { border-color: #FF6B00; box-shadow: 0 0 0 2px rgba(255,107,0,.15); }
 /* Muted text */
 .muted { color: var(--text2, #6B7280); font-size: 13px; }
+
+/* --- Chips --- */
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--surface2, #F3F4F6); color: var(--text2, #6B7280); border: 1px solid var(--line, #E5E7EB); }
+.cause-chip.M { background: #EDE9FE; color: #7C3AED; border-color: #C4B5FD; }
+.cause-chip.A { background: #DBEAFE; color: #1D4ED8; border-color: #BFDBFE; }
+.cause-chip.P { background: #CCFBF1; color: #0D9488; border-color: #99F6E4; }
+
+/* --- Cycle card status pills --- */
+.status-pill.closed { background: #D1FAE5; color: #065F46; }
+.status-pill.discarded { background: var(--surface2, #F3F4F6); color: var(--text3, #9CA3AF); }
+
+/* --- Pattern cards --- */
+.pattern-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--line, #E5E7EB); border-radius: 12px; background: var(--surface, #fff); }
+.pattern-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; width: fit-content; letter-spacing: .04em; }
+.pattern-badge.patron { background: #D1FAE5; color: #065F46; }
+.pattern-badge.anti_patron { background: #FEE2E2; color: #991B1B; }
+.pattern-learning { font-size: 13px; color: var(--text2, #6B7280); margin: 0; }
+.delta { font-family: var(--mono, monospace); font-size: 12px; color: #FF6B00; font-weight: 600; }
+.reuse-count { font-size: 11px; color: var(--text3, #9CA3AF); }
+.reuse-btn { font-size: 12px; font-weight: 600; color: #FF6B00; background: none; border: none; cursor: pointer; padding: 0; }
+.pattern-card footer { display: flex; align-items: center; gap: 12px; margin-top: auto; }
+
+/* --- Close panel (F5 Distill) --- */
+.close-panel { border-top: 1px solid var(--line, #E5E7EB); padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; background: var(--surface, #fff); }
+.close-panel h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.close-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.close-panel .field-group { display: flex; flex-direction: column; gap: 4px; }
+.close-panel label { font-size: 12px; font-weight: 500; color: var(--text2, #6B7280); }
+.close-panel input, .close-panel select, .close-panel textarea { font-size: 13px; padding: 8px 10px; border: 1px solid var(--line, #E5E7EB); border-radius: 8px; background: var(--bg, #fff); color: var(--text, #111); font-family: inherit; }
+.close-panel textarea { resize: vertical; }

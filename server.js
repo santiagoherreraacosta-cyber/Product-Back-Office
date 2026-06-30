@@ -289,7 +289,39 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/cycles") {
     const body = await readBody(req);
     if (!body.title) return json(res, { error: "title required" }, 400);
-    const cycle = { id: `cycle-${crypto.randomUUID()}`, ...body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: currentUser?.sub };
+    const now = new Date().toISOString();
+    const cycle = {
+      id: `cycle-${crypto.randomUUID()}`,
+      title: body.title,
+      sub_perfil: body.sub_perfil ?? null,
+      segmento_objetivo: body.segmento_objetivo ?? null,
+      transicion: body.transicion ?? null,
+      causa: body.causa ?? null,
+      causa_source: body.causa_source ?? null,
+      fase_actual: body.fase_actual ?? "F0",
+      estado: "activo",
+      resultado_cierre: null,
+      riesgos: body.riesgos ?? [],
+      brief: body.brief ?? {},
+      experiment: body.experiment ?? {},
+      cierre: null,
+      messages: [],
+      // legacy fields (stepper UI still uses these)
+      phases: body.phases ?? structuredClone([
+        { key: "F0", label: "Sense", state: "active" },
+        { key: "F1", label: "Diagnose", state: "todo" },
+        { key: "F2", label: "Design", state: "todo" },
+        { key: "F3", label: "Decide", state: "todo" },
+        { key: "F4", label: "Deploy", state: "todo" },
+        { key: "F5", label: "Distill", state: "todo" },
+      ]),
+      activePhase: body.activePhase ?? "F0",
+      riskAccepted: false,
+      createdAt: now,
+      updatedAt: now,
+      last_activity_at: now,
+      createdBy: currentUser?.sub,
+    };
     cycles.set(cycle.id, cycle);
     void persistCycles();
     logAudit(currentUser?.email, "cycle_created", cycle.id);
@@ -297,23 +329,75 @@ async function handle(req, res) {
   }
 
   if (pathname.startsWith("/api/cycles/")) {
-    const cycleId = pathname.split("/")[3];
-    if (req.method === "GET") {
+    const parts = pathname.split("/");
+    const cycleId = parts[3];
+    const rest = parts.slice(4).join("/");
+
+    if (req.method === "POST" && rest === "close") {
+      const cycle = cycles.get(cycleId);
+      if (!cycle) return json(res, { error: "Not found" }, 404);
+      const body = await readBody(req);
+      if (!body.learning?.trim() || !body.pattern_name?.trim()) {
+        return json(res, { error: "learning and pattern_name required" }, 400);
+      }
+      const now = new Date().toISOString();
+      const patternId = `pat-${crypto.randomUUID()}`;
+      const newPattern = {
+        id: patternId,
+        tipo: body.tipo ?? "patron",
+        nombre: body.pattern_name.trim(),
+        causa: cycle.causa ?? null,
+        sub_perfil: cycle.sub_perfil ?? null,
+        transicion: cycle.transicion ?? null,
+        aprendizaje: body.learning.trim(),
+        delta_metrica: body.delta?.trim() || null,
+        evidencia: body.evidencia?.trim() || null,
+        ciclo_origen_id: cycleId,
+        veces_reutilizado: 0,
+        createdAt: now,
+        createdBy: currentUser?.sub,
+      };
+      const closedCycle = {
+        ...cycle,
+        estado: "cerrado",
+        fase_actual: "F5",
+        activePhase: "F5",
+        resultado_cierre: body.resultado_cierre ?? body.decision ?? null,
+        cierre: {
+          metric_result: body.metric_result ?? null,
+          delta: body.delta ?? null,
+          decision: body.decision ?? null,
+          learning: body.learning.trim(),
+          pattern_id: patternId,
+        },
+        updatedAt: now,
+        last_activity_at: now,
+      };
+      cycles.set(cycleId, closedCycle);
+      patterns.push(newPattern);
+      void persistCycles();
+      void persistPatterns();
+      logAudit(currentUser?.email, "cycle_closed", cycleId, { patternId });
+      return json(res, { cycle: closedCycle, pattern: newPattern });
+    }
+
+    if (req.method === "GET" && !rest) {
       const cycle = cycles.get(cycleId);
       if (!cycle) return json(res, { error: "Not found" }, 404);
       return json(res, cycle);
     }
-    if (req.method === "PATCH" || req.method === "PUT") {
+    if ((req.method === "PATCH" || req.method === "PUT") && !rest) {
       const cycle = cycles.get(cycleId);
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
-      const updated = { ...cycle, ...body, id: cycleId, updatedAt: new Date().toISOString() };
+      const now = new Date().toISOString();
+      const updated = { ...cycle, ...body, id: cycleId, updatedAt: now, last_activity_at: now };
       cycles.set(cycleId, updated);
       void persistCycles();
       logAudit(currentUser?.email, "cycle_updated", cycleId);
       return json(res, updated);
     }
-    if (req.method === "DELETE") {
+    if (req.method === "DELETE" && !rest) {
       if (!cycles.has(cycleId)) return json(res, { error: "Not found" }, 404);
       cycles.delete(cycleId);
       void persistCycles();
@@ -354,12 +438,47 @@ async function handle(req, res) {
     if (req.method === "POST" && rest === "reuse") {
       const pattern = patterns.find((p) => p.id === patId);
       if (!pattern) return json(res, { error: "Not found" }, 404);
-      const body = await readBody(req);
-      const reuse = { ...pattern, ...body, id: `pat-${crypto.randomUUID()}`, reusedFrom: patId, createdAt: new Date().toISOString(), createdBy: currentUser?.sub };
-      patterns.push(reuse);
-      await persistPatterns();
-      logAudit(currentUser?.email, "pattern_reused", patId, { newId: reuse.id });
-      return json(res, reuse, 201);
+      // Increment reuse count
+      const idx = patterns.findIndex((p) => p.id === patId);
+      patterns[idx] = { ...pattern, veces_reutilizado: (pattern.veces_reutilizado ?? 0) + 1 };
+      const now = new Date().toISOString();
+      const newCycle = {
+        id: `cycle-${crypto.randomUUID()}`,
+        title: `[Reuso] ${pattern.nombre ?? pattern.name}`,
+        sub_perfil: pattern.sub_perfil ?? null,
+        segmento_objetivo: null,
+        transicion: pattern.transicion ?? null,
+        causa: pattern.causa ?? null,
+        causa_source: "llm_suggested",
+        fase_actual: "F0",
+        estado: "activo",
+        resultado_cierre: null,
+        riesgos: [],
+        brief: { hipotesis: { value: pattern.aprendizaje ?? "", confirmed: false } },
+        experiment: {},
+        cierre: null,
+        messages: [],
+        phases: [
+          { key: "F0", label: "Sense", state: "active" },
+          { key: "F1", label: "Diagnose", state: "todo" },
+          { key: "F2", label: "Design", state: "todo" },
+          { key: "F3", label: "Decide", state: "todo" },
+          { key: "F4", label: "Deploy", state: "todo" },
+          { key: "F5", label: "Distill", state: "todo" },
+        ],
+        activePhase: "F0",
+        riskAccepted: false,
+        reusedFromPattern: patId,
+        createdAt: now,
+        updatedAt: now,
+        last_activity_at: now,
+        createdBy: currentUser?.sub,
+      };
+      cycles.set(newCycle.id, newCycle);
+      void persistCycles();
+      void persistPatterns();
+      logAudit(currentUser?.email, "pattern_reused", patId, { newCycleId: newCycle.id });
+      return json(res, { pattern: patterns[idx], newCycle }, 201);
     }
   }
 
@@ -375,7 +494,22 @@ async function handle(req, res) {
     }
 
     const cycle = cycleId ? cycles.get(cycleId) : null;
-    const cycleContext = cycle ? `\n\n## Ciclo activo\n${JSON.stringify(cycle, null, 2)}` : "";
+    // Build conversation history (last 20 messages)
+    const history = (cycle?.messages ?? []).slice(-20).map((m) => ({ role: m.role, content: m.content }));
+    // Build structured cycle context for system prompt
+    const cycleCtx = cycle ? JSON.stringify({
+      fase: cycle.fase_actual ?? cycle.activePhase,
+      sub_perfil: cycle.sub_perfil,
+      transicion: cycle.transicion,
+      causa: cycle.causa,
+      causa_source: cycle.causa_source,
+      brief: cycle.brief,
+      riesgos: cycle.riesgos,
+      estado: cycle.estado,
+    }, null, 2) : null;
+    const systemWithCtx = cycleCtx
+      ? `${systemPrompt}\n\n---\n## CICLO ACTIVO\n${cycleCtx}`
+      : systemPrompt;
 
     const llmRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -387,8 +521,8 @@ async function handle(req, res) {
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: systemPrompt + cycleContext,
-        messages: [{ role: "user", content: message }],
+        system: systemWithCtx,
+        messages: [...history, { role: "user", content: message }],
       }),
     });
 
@@ -400,6 +534,17 @@ async function handle(req, res) {
 
     const data = await llmRes.json();
     const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
+
+    // Persist messages in cycle
+    if (cycle) {
+      const now = new Date().toISOString();
+      const msgs = cycle.messages ?? [];
+      msgs.push({ id: crypto.randomUUID(), role: "user", content: message, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
+      msgs.push({ id: crypto.randomUUID(), role: "assistant", content: reply, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
+      cycles.set(cycleId, { ...cycle, messages: msgs, last_activity_at: now });
+      void persistCycles();
+    }
+
     logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
     return json(res, { reply });
   }

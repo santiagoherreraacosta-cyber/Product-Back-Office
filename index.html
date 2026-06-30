@@ -111,6 +111,42 @@
 
           <section id="messageStream" class="message-stream scrim" aria-live="polite"></section>
 
+          <section id="closePanel" class="close-panel" hidden>
+            <h2>Cerrar ciclo — F5 Distill</h2>
+            <div class="close-grid">
+              <div class="field-group">
+                <label for="closureDecision">Decisión</label>
+                <select id="closureDecision">
+                  <option value="escalado">Escalar</option>
+                  <option value="matado">Matar</option>
+                  <option value="iterando">Iterar</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="closureDelta">Delta métrica</label>
+                <input id="closureDelta" placeholder="ej: +12pp activación" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="closureLearning">¿Qué aprendimos? <em>(se convierte en el patrón)</em></label>
+              <textarea id="closureLearning" rows="3" placeholder="Aprendizaje accionable…"></textarea>
+            </div>
+            <div class="close-grid">
+              <div class="field-group">
+                <label for="patternName">Nombre del patrón</label>
+                <input id="patternName" placeholder="Verbo + segmento + contexto" />
+              </div>
+              <div class="field-group">
+                <label for="patternType">Tipo</label>
+                <select id="patternType">
+                  <option value="patron">Patrón</option>
+                  <option value="anti_patron">Anti-patrón</option>
+                </select>
+              </div>
+            </div>
+            <button id="closeCycleButton" class="primary-action" type="button">Cerrar ciclo y crear patrón</button>
+          </section>
+
           <form id="chatForm" class="chat-input-wrap">
             <div class="chat-input">
               <label class="sr-only" for="messageInput">Mensaje</label>
@@ -139,12 +175,12 @@
             <input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" />
           </header>
           <div class="filter-row">
-            <button class="filter active">Todos</button>
-            <button class="filter">Patrón</button>
-            <button class="filter">Anti-patrón</button>
-            <button class="filter cause-filter motivation"><span></span>Motivación</button>
-            <button class="filter cause-filter ability"><span></span>Ability</button>
-            <button class="filter cause-filter prompt"><span></span>Prompt</button>
+            <button class="filter active" data-filter="all">Todos</button>
+            <button class="filter" data-filter="patron">Patrón</button>
+            <button class="filter" data-filter="anti_patron">Anti-patrón</button>
+            <button class="filter cause-filter motivation" data-filter="m"><span></span>Motivación</button>
+            <button class="filter cause-filter ability" data-filter="a"><span></span>Ability</button>
+            <button class="filter cause-filter prompt" data-filter="p"><span></span>Prompt</button>
           </div>
           <div id="patternsList" class="pattern-grid" aria-live="polite"></div>
         </section>
