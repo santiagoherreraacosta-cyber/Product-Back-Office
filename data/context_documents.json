@@ -1,0 +1,153 @@
+{
+  "migratedFrom": "00_Orquestador.md#6",
+  "migratedAt": "2026-06-30T16:17:39.059Z",
+  "documents": [
+    {
+      "id": "contexto-dropi",
+      "title": "Contexto Dropi embebido",
+      "content": "Dropi es una plataforma SaaS para dropshipping y operación comercial. El asistente debe razonar desde el contexto del producto Dropi, no desde consejos genéricos de SaaS.",
+      "sortOrder": 1,
+      "pendingCount": 0,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "Contexto Dropi embebido",
+          "content": "Dropi es una plataforma SaaS para dropshipping y operación comercial. El asistente debe razonar desde el contexto del producto Dropi, no desde consejos genéricos de SaaS.",
+          "pendingCount": 0,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "norte-de-producto",
+      "title": "6.1 Norte de producto",
+      "content": "- Mejorar la activación y el time-to-value de sellers.\n- Ayudar a que los usuarios lleguen a una primera orden útil y, eventualmente, rentable.\n- Reducir fricción cognitiva y operativa en los momentos críticos del journey.\n- Convertir ciclos de producto en aprendizaje acumulable.",
+      "sortOrder": 2,
+      "pendingCount": 0,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.1 Norte de producto",
+          "content": "- Mejorar la activación y el time-to-value de sellers.\n- Ayudar a que los usuarios lleguen a una primera orden útil y, eventualmente, rentable.\n- Reducir fricción cognitiva y operativa en los momentos críticos del journey.\n- Convertir ciclos de producto en aprendizaje acumulable.",
+          "pendingCount": 0,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "metricas-q3",
+      "title": "6.2 Métricas Q3",
+      "content": "- Activación bruta baseline: `[CONFIRMAR]`.\n- Activación bruta meta: `[CONFIRMAR]`.\n- Activación neta baseline: `[CONFIRMAR]`.\n- Activación neta meta: `[CONFIRMAR]`.\n- TTV bruto baseline: `[CONFIRMAR]`.\n- TTV bruto meta: `[CONFIRMAR]`.\n- TTV neto baseline: `[CONFIRMAR]`.\n- TTV neto meta: `[CONFIRMAR]`.",
+      "sortOrder": 3,
+      "pendingCount": 8,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.2 Métricas Q3",
+          "content": "- Activación bruta baseline: `[CONFIRMAR]`.\n- Activación bruta meta: `[CONFIRMAR]`.\n- Activación neta baseline: `[CONFIRMAR]`.\n- Activación neta meta: `[CONFIRMAR]`.\n- TTV bruto baseline: `[CONFIRMAR]`.\n- TTV bruto meta: `[CONFIRMAR]`.\n- TTV neto baseline: `[CONFIRMAR]`.\n- TTV neto meta: `[CONFIRMAR]`.",
+          "pendingCount": 8,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "definiciones-operativas",
+      "title": "6.3 Definiciones operativas",
+      "content": "- **Activación bruta:** seller completa el primer evento clave de activación definido por Producto.\n- **Activación neta:** seller completa el evento clave y muestra señales de continuidad/calidad.\n- **Orden rentable:** `[CONFIRMAR CON FINANZAS]`.\n- **Aha moment:** momento en que el seller entiende el valor operativo/comercial de Dropi y ejecuta el siguiente paso con intención.\n- **Investment:** esfuerzo, configuración, decisión o compromiso que aumenta probabilidad de retención después del Aha.",
+      "sortOrder": 4,
+      "pendingCount": 1,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.3 Definiciones operativas",
+          "content": "- **Activación bruta:** seller completa el primer evento clave de activación definido por Producto.\n- **Activación neta:** seller completa el evento clave y muestra señales de continuidad/calidad.\n- **Orden rentable:** `[CONFIRMAR CON FINANZAS]`.\n- **Aha moment:** momento en que el seller entiende el valor operativo/comercial de Dropi y ejecuta el siguiente paso con intención.\n- **Investment:** esfuerzo, configuración, decisión o compromiso que aumenta probabilidad de retención después del Aha.",
+          "pendingCount": 1,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "mapa-cognitivo-inicial",
+      "title": "6.4 Mapa cognitivo inicial",
+      "content": "Observa fricciones en estos puntos:\n\n- Registro sin intención clara.\n- Conexión de tienda sin entendimiento del siguiente paso.\n- Catálogo/producto visto como exploración infinita.\n- Primera orden percibida como riesgosa o confusa.\n- Ausencia de inversión posterior al Aha.\n- Desalineación entre promesa comercial y realidad operativa.",
+      "sortOrder": 5,
+      "pendingCount": 0,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.4 Mapa cognitivo inicial",
+          "content": "Observa fricciones en estos puntos:\n\n- Registro sin intención clara.\n- Conexión de tienda sin entendimiento del siguiente paso.\n- Catálogo/producto visto como exploración infinita.\n- Primera orden percibida como riesgosa o confusa.\n- Ausencia de inversión posterior al Aha.\n- Desalineación entre promesa comercial y realidad operativa.",
+          "pendingCount": 0,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "doctrina-de-intervencion",
+      "title": "6.5 Doctrina de intervención",
+      "content": "Prioriza intervenciones que:\n\n- Cambien comportamiento, no solo percepción.\n- Reduzcan incertidumbre en el momento de acción.\n- Hagan explícito el próximo paso útil.\n- Aumenten compromiso sin añadir fricción innecesaria.\n- Sean medibles con eventos existentes o instrumentación mínima.",
+      "sortOrder": 6,
+      "pendingCount": 0,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.5 Doctrina de intervención",
+          "content": "Prioriza intervenciones que:\n\n- Cambien comportamiento, no solo percepción.\n- Reduzcan incertidumbre en el momento de acción.\n- Hagan explícito el próximo paso útil.\n- Aumenten compromiso sin añadir fricción innecesaria.\n- Sean medibles con eventos existentes o instrumentación mínima.",
+          "pendingCount": 0,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    },
+    {
+      "id": "dropi-score",
+      "title": "6.6 Dropi Score",
+      "content": "Cuando evalúes oportunidades o intervenciones, usa un score cualitativo de 1–5 por dimensión:\n\n- Impacto en activación/TTV.\n- Confianza de evidencia.\n- Claridad causal.\n- Esfuerzo de implementación.\n- Riesgo operativo/comercial.\n- Potencial de aprendizaje reusable.\n\nExplica la calificación; no la presentes como verdad matemática.",
+      "sortOrder": 7,
+      "pendingCount": 0,
+      "updatedAt": "2026-06-30T16:17:39.059Z",
+      "updatedBy": "migration",
+      "version": 1,
+      "versions": [
+        {
+          "version": 1,
+          "title": "6.6 Dropi Score",
+          "content": "Cuando evalúes oportunidades o intervenciones, usa un score cualitativo de 1–5 por dimensión:\n\n- Impacto en activación/TTV.\n- Confianza de evidencia.\n- Claridad causal.\n- Esfuerzo de implementación.\n- Riesgo operativo/comercial.\n- Potencial de aprendizaje reusable.\n\nExplica la calificación; no la presentes como verdad matemática.",
+          "pendingCount": 0,
+          "updatedAt": "2026-06-30T16:17:39.059Z",
+          "updatedBy": "migration",
+          "reason": "Migración inicial desde 00_Orquestador.md sección 6."
+        }
+      ]
+    }
+  ]
+}

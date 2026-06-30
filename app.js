@@ -25,6 +25,8 @@ const homeView = document.querySelector("#homeView");
 const workspaceView = document.querySelector("#workspaceView");
 const libraryView = document.querySelector("#libraryView");
 const contextView = document.querySelector("#contextView");
+const contextDocuments = document.querySelector("#contextDocuments");
+const contextPendingBanner = document.querySelector("#contextPendingBanner");
 const newCycleButton = document.querySelector("#newCycleButton");
 const briefSwitch = document.querySelector("#briefSwitch");
 const experimentSwitch = document.querySelector("#experimentSwitch");
@@ -56,6 +58,7 @@ let filled = riskAccepted ? 7 : 6;
 let promptIndex = 0;
 let currentView = "workspace";
 let deliverable = "brief";
+let contextLoaded = false;
 
 init();
 
@@ -165,6 +168,53 @@ function setView(view) {
   workspaceView.hidden = view !== "workspace";
   libraryView.hidden = view !== "library";
   contextView.hidden = view !== "context";
+  if (view === "context" && !contextLoaded) loadContextDocuments();
+}
+
+async function loadContextDocuments() {
+  contextPendingBanner.textContent = "Cargando contexto…";
+  try {
+    const response = await fetch("/api/context");
+    if (!response.ok) throw new Error("No se pudo cargar el contexto.");
+    const data = await response.json();
+    contextLoaded = true;
+    renderContextDocuments(data);
+  } catch (error) {
+    contextPendingBanner.textContent = `${error.message} Revisa que el backend Node esté corriendo con npm run start.`;
+  }
+}
+
+function renderContextDocuments(data) {
+  contextPendingBanner.textContent = `${data.pendingCount} campos pendientes [CONFIRMAR] — la IA los tratará como supuestos.`;
+  contextDocuments.innerHTML = data.documents
+    .map((doc) => `
+      <section class="context-document" data-context-id="${escapeHtml(doc.id)}">
+        <header><h2>${escapeHtml(doc.title)}</h2><span>v${doc.version} · ${doc.pendingCount} pendientes</span></header>
+        <textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>
+        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${new Date(doc.updatedAt).toLocaleString("es-CO")}</span><button class="secondary-action" type="button" data-save-context>Guardar como admin</button></footer>
+      </section>`)
+    .join("");
+  contextDocuments.querySelectorAll("[data-save-context]").forEach((button) => {
+    button.addEventListener("click", () => saveContextDocument(button.closest("[data-context-id]")));
+  });
+}
+
+async function saveContextDocument(section) {
+  const id = section.dataset.contextId;
+  const content = section.querySelector("textarea").value;
+  const button = section.querySelector("[data-save-context]");
+  button.disabled = true;
+  button.textContent = "Guardando…";
+  try {
+    const response = await fetch(`/api/context/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-Admin-Role": "admin" }, body: JSON.stringify({ content, reason: "Edición desde Contexto Dropi" }) });
+    if (!response.ok) throw new Error("No se pudo guardar la edición.");
+    contextLoaded = false;
+    await loadContextDocuments();
+  } catch (error) {
+    button.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function setDeliverable(next) {

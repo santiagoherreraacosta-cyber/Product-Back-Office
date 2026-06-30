@@ -445,3 +445,9 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .palette-input { min-width: 100%; }
 .palette-card button.is-hidden { display: none; }
 @media (max-width: 1120px) { .cycle-grid, .pattern-grid { grid-template-columns: 1fr; } .context-view { grid-template-columns: 1fr; } .toc { display: none; } }
+.context-documents { display: grid; gap: 18px; }
+.context-document { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: var(--panel); }
+.context-document header, .context-document footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.context-document header span, .context-document footer span { color: var(--muted); font-size: 12px; }
+.context-document textarea { width: 100%; min-height: 150px; margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--bg); color: var(--text); font: 13px/1.55 "JetBrains Mono", monospace; resize: vertical; }
+.context-document textarea:focus { outline: 2px solid var(--teal-soft); border-color: var(--teal); }
