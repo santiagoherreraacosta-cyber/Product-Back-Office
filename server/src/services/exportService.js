@@ -62,9 +62,14 @@ export function generateFullCycleMarkdown(input = {}) {
   return `# Ciclo completo\n\n## Resumen ejecutivo\n${state.executiveSummary}\n\n## Conversación\n${conversationList(state.conversation)}\n\n## Riesgos asumidos\n${list(state.risks.assumed)}\n\n## Riesgos resueltos\n${list(state.risks.resolved)}\n\n## Evidencia\n${list(state.evidence)}\n\n## Decisión\n${state.decision}\n\n---\n\n${generateInterventionBriefMarkdown(state)}\n\n---\n\n${generateExperimentCardMarkdown(state)}`;
 }
 
+function escapeHtml(str) {
+  return String(str).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
 export function markdownToPdfHtml(markdown, title = "Export Dropi") {
-  const escaped = markdown.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Inter,Arial,sans-serif;line-height:1.55;padding:32px;color:#1f2328}pre{white-space:pre-wrap}h1{color:#ff6b00}</style></head><body><pre>${escaped}</pre><script>window.onload=()=>window.print()</script></body></html>`;
+  const escapedBody = escapeHtml(markdown);
+  const escapedTitle = escapeHtml(title);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapedTitle}</title><style>body{font-family:Inter,Arial,sans-serif;line-height:1.55;padding:32px;color:#1f2328}pre{white-space:pre-wrap}h1{color:#ff6b00}</style></head><body><pre>${escapedBody}</pre><script>window.onload=()=>window.print()</script></body></html>`;
 }
 
 export function createPdfDownload(markdown, title = "Export Dropi") {
