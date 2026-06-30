@@ -357,11 +357,16 @@ async function handle(req, res) {
         createdAt: now,
         createdBy: currentUser?.sub,
       };
+      const closedPhases = (cycle.phases ?? []).map((p) => ({
+        ...p,
+        state: p.key === "F5" ? "done" : p.state === "active" ? "done" : p.state,
+      }));
       const closedCycle = {
         ...cycle,
         estado: "cerrado",
         fase_actual: "F5",
         activePhase: "F5",
+        phases: closedPhases,
         resultado_cierre: body.resultado_cierre ?? body.decision ?? null,
         cierre: {
           metric_result: body.metric_result ?? null,

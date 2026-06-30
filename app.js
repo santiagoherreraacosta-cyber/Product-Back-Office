@@ -87,6 +87,17 @@ function authHeaders() {
   return { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` };
 }
 
+// Global fetch wrapper — catches 401 mid-session and forces re-login
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    showToast("Sesión expirada. Inicia sesión de nuevo.", true);
+    setTimeout(logout, 1500);
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
 function getCurrentCycle() {
   return cycles.find((c) => c.id === currentCycleId) ?? null;
 }
@@ -113,7 +124,8 @@ function showLogin() {
 function showApp() {
   loginView.hidden = true;
   workspace.hidden = false;
-  userEmailEl.textContent = currentUser?.email ?? "";
+  const roleLabel = currentUser?.role === "admin" ? " · admin" : currentUser?.role === "pm" ? " · pm" : "";
+  userEmailEl.textContent = (currentUser?.email ?? "") + roleLabel;
 }
 
 async function checkAuth() {
@@ -186,7 +198,8 @@ async function loadInitialData() {
   } else {
     renderMessages([]);
   }
-  setView("workspace");
+  // Land on Home when no cycles exist so the CTA is the first thing the user sees
+  setView(cycles.length ? "workspace" : "home");
   renderBriefState();
 }
 
@@ -194,7 +207,7 @@ async function loadInitialData() {
 async function loadCycles() {
   cyclesList.innerHTML = `<p class="loading-state">Cargando ciclos…</p>`;
   try {
-    const res = await fetch("/api/cycles", { headers: authHeaders() });
+    const res = await apiFetch("/api/cycles", { headers: authHeaders() });
     if (!res.ok) throw new Error(`Error ${res.status}`);
     cycles = await res.json();
     if (cycles.length && !currentCycleId) {
@@ -237,7 +250,7 @@ async function createCycle(title) {
 async function updateCycle(patch) {
   if (!currentCycleId) return;
   try {
-    const res = await fetch(`/api/cycles/${currentCycleId}`, {
+    const res = await apiFetch(`/api/cycles/${currentCycleId}`, {
       method: "PATCH",
       headers: authHeaders(),
       body: JSON.stringify(patch),
@@ -315,7 +328,8 @@ function renderActiveCycle() {
   const phases = cycle.phases ?? phaseSeed;
   const active = cycle.fase_actual ?? cycle.activePhase ?? "F0";
   const activePhaseObj = phases.find((p) => p.key === active) ?? phases[0];
-  activeCycleCard.innerHTML = `<h2>${escapeHtml(cycle.title)}</h2>`;
+  const isClosed = cycle.estado !== "activo";
+  activeCycleCard.innerHTML = `<h2>${escapeHtml(cycle.title)}</h2>${isClosed ? `<span class="cycle-closed-badge">${escapeHtml(cycle.estado === "cerrado" ? "Cerrado" : "Descartado")}</span>` : ""}`;
   activeCycleName.textContent = cycle.title;
   activePhaseLabel.textContent = `${activePhaseObj.key} · ${activePhaseObj.label}`;
   activePhaseNote.textContent = activePhaseObj.note || "gate abierto";
@@ -324,11 +338,15 @@ function renderActiveCycle() {
   if (closePanel) closePanel.hidden = !(active === "F5" && cycle.estado === "activo");
   // Populate brief panel from real cycle data
   loadBriefFromCycle(cycle);
+  // Grey out chat input for closed/discarded cycles
+  chatInput?.classList.toggle("is-readonly", isClosed);
+  if (messageInput) messageInput.placeholder = isClosed ? "Ciclo cerrado — solo lectura" : "";
+  if (placeholder) placeholder.style.display = isClosed ? "none" : "";
 }
 
 async function reusePattern(patternId) {
   try {
-    const res = await fetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
+    const res = await apiFetch(`/api/patterns/${patternId}/reuse`, { method: "POST", headers: authHeaders() });
     if (!res.ok) return;
     const { newCycle } = await res.json();
     // Refresh patterns to get updated veces_reutilizado
@@ -361,7 +379,7 @@ async function closeCycle() {
   }
   if (!confirm(`¿Cerrar el ciclo y crear el patrón "${pattern_name}"? Esta acción no se puede deshacer.`)) return;
   try {
-    const res = await fetch(`/api/cycles/${currentCycleId}/close`, {
+    const res = await apiFetch(`/api/cycles/${currentCycleId}/close`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({
@@ -386,16 +404,17 @@ async function closeCycle() {
     renderActiveCycle();
     renderStepper();
     addAiNote(`Ciclo cerrado. Patrón "${escapeHtml(pattern.nombre)}" creado en la Biblioteca.`);
+    showToast(`Patrón "${pattern.nombre}" guardado en la Biblioteca.`);
     setView("home");
   } catch {
-    console.warn("No se pudo cerrar el ciclo.");
+    showToast("No se pudo cerrar el ciclo. Intenta de nuevo.", true);
   }
 }
 
 // --- Patterns ---
 async function loadPatterns() {
   try {
-    const res = await fetch("/api/patterns", { headers: authHeaders() });
+    const res = await apiFetch("/api/patterns", { headers: authHeaders() });
     if (!res.ok) throw new Error(`Error ${res.status}`);
     patterns = await res.json();
     if (currentView === "library") renderPatternsList();
@@ -475,7 +494,7 @@ function renderContextDocuments(data) {
       <section class="context-document" data-context-id="${escapeHtml(doc.id)}">
         <header><h2>${escapeHtml(doc.title)}</h2><span>v${escapeHtml(String(doc.version))} · ${escapeHtml(String(doc.pendingCount))} pendientes</span></header>
         <textarea aria-label="Editar ${escapeHtml(doc.title)}">${escapeHtml(doc.content)}</textarea>
-        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context>Guardar como admin</button></footer>
+        <footer><span>Actualizado por ${escapeHtml(doc.updatedBy)} · ${escapeHtml(new Date(doc.updatedAt).toLocaleString("es-CO"))}</span><button class="secondary-action" type="button" data-save-context ${currentUser?.role !== "admin" ? 'disabled title="Solo admins pueden guardar"' : ""}>Guardar${currentUser?.role === "admin" ? " ✓" : " (solo admins)"}</button></footer>
       </section>`)
     .join("");
   contextDocuments.querySelectorAll("[data-save-context]").forEach((button) => {
@@ -590,6 +609,12 @@ function renderMessages(msgs) {
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
+  // Closed/discarded cycles are read-only
+  const activeCycleCheck = getCurrentCycle();
+  if (activeCycleCheck && activeCycleCheck.estado !== "activo") {
+    showToast("Este ciclo está cerrado. Crea uno nuevo o reutiliza el patrón desde la Biblioteca.");
+    return;
+  }
   const inner = messageStream.querySelector(".stream-inner");
   inner.insertAdjacentHTML("beforeend", `<div class="user-message">${escapeHtml(text)}</div>`);
   messageInput.value = "";
@@ -622,7 +647,7 @@ async function sendMessage() {
   const thinkingEl = inner.querySelector(".ai-message:last-child .ai-body p");
 
   try {
-    const res = await fetch("/api/chat", {
+    const res = await apiFetch("/api/chat", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify({ message: text, cycleId: currentCycleId }),
@@ -889,9 +914,18 @@ commandPalette?.addEventListener("click", (event) => {
   if (!command) return;
   if (["home", "workspace", "library", "context"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
-  if (command === "brief") downloadBrief();
-  if (command === "experiment") setDeliverable("experiment");
-  if (command === "advance") acceptRiskAndAdvance();
+  if (command === "brief") {
+    if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para exportar el brief."); }
+    else downloadBrief();
+  }
+  if (command === "experiment") {
+    if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ver la Experiment Card."); }
+    else setDeliverable("experiment");
+  }
+  if (command === "advance") {
+    if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para avanzar de fase."); }
+    else acceptRiskAndAdvance();
+  }
   commandPalette.hidden = true;
 });
 

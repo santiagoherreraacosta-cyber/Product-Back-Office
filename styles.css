@@ -582,6 +582,13 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .close-panel input, .close-panel select, .close-panel textarea { font-size: 13px; padding: 8px 10px; border: 1px solid var(--line, #E5E7EB); border-radius: 8px; background: var(--bg, #fff); color: var(--text, #111); font-family: inherit; }
 .close-panel textarea { resize: vertical; }
 
+/* --- Closed cycle badge in rail sidebar --- */
+.cycle-closed-badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; background: var(--green-soft); color: var(--green); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+
+/* --- Read-only chat input state (closed cycles) --- */
+.chat-input.is-readonly { opacity: 0.55; pointer-events: none; }
+.chat-input.is-readonly textarea { cursor: not-allowed; }
+
 /* --- Loading / error states --- */
 .loading-state { color: var(--text3); font-size: 13px; padding: 24px; text-align: center; }
 .error-state { color: var(--red); font-size: 13px; padding: 24px; text-align: center; }
