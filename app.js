@@ -224,10 +224,9 @@ async function createCycle(title) {
     cycles.push(cycle);
     currentCycleId = cycle.id;
     renderCyclesList();
-    renderActiveCycle();
+    renderActiveCycle();  // also calls loadBriefFromCycle internally
     renderStepper();
     renderBriefState();
-    briefCycleTitle.textContent = cycle.title;
     addAiNote(`Nuevo ciclo "${escapeHtml(cycle.title)}" en F0 · Sense. Empecemos: ¿qué seller, haciendo qué, no está haciendo qué?`);
     setView("workspace");
   } catch {
@@ -323,6 +322,8 @@ function renderActiveCycle() {
   briefCycleTitle.textContent = cycle.title;
   // Show close panel only in F5 and only for active cycles
   if (closePanel) closePanel.hidden = !(active === "F5" && cycle.estado === "activo");
+  // Populate brief panel from real cycle data
+  loadBriefFromCycle(cycle);
 }
 
 async function reusePattern(patternId) {
@@ -623,7 +624,19 @@ async function sendMessage() {
     });
     const data = await res.json();
     thinkingEl.classList.remove("thinking");
-    thinkingEl.textContent = data.reply ?? data.error ?? "Sin respuesta.";
+    const reply = data.reply ?? data.error ?? "Sin respuesta.";
+    thinkingEl.textContent = reply;
+    // Keep local cycle.messages in sync so history is correct on re-select
+    const activeCycle = getCurrentCycle();
+    if (activeCycle) {
+      const now = new Date().toISOString();
+      activeCycle.messages = [
+        ...(activeCycle.messages ?? []),
+        { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
+        { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
+      ];
+      cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
+    }
   } catch {
     thinkingEl.classList.remove("thinking");
     thinkingEl.textContent = "Error de conexión con el asistente.";
@@ -678,22 +691,67 @@ function setBriefProgress(value) {
   progressFill.style.width = `${Math.round((filled / 11) * 100)}%`;
 }
 
-function fillField(element, value) {
-  element.textContent = value;
-  element.classList.remove("confirm-field");
-  element.classList.add("mono-value", "fillable", "fillpop");
-  setTimeout(() => element.classList.remove("fillpop"), 700);
+// Populate a brief panel DOM element with a real value or reset to [CONFIRMAR]
+function setField(el, value) {
+  if (!el) return;
+  if (value) {
+    el.textContent = value;
+    el.classList.remove("confirm-field");
+    el.classList.add("mono-value");
+  } else {
+    el.innerHTML = "<strong>[CONFIRMAR]</strong>";
+    el.classList.add("confirm-field");
+    el.classList.remove("mono-value");
+  }
+}
+
+// Read cycle.brief{} and cycle top-level fields → populate all brief panel DOM elements
+function loadBriefFromCycle(cycle) {
+  const b = cycle?.brief ?? {};
+  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
+
+  // Brief panel fields
+  setField(document.querySelector("#briefBehavior"), b.behavior_statement?.value ?? null);
+  setField(document.querySelector("#briefSubProfile"), cycle?.sub_perfil?.replace(/_/g, " ") ?? null);
+  setField(
+    document.querySelector("#briefCogLevel"),
+    b.nivel_cognitivo?.value ?? (cycle?.transicion ? cycle.transicion.replace(/_/g, "→") : null)
+  );
+  const causeValue = b.causa?.value ?? (cycle?.causa ? `${cycle.causa} · ${causeMap[cycle.causa] ?? cycle.causa}` : null);
+  setField(document.querySelector("#briefCause"), causeValue);
+  setField(document.querySelector("#briefEvidence"), b.evidencia_primaria?.value ?? null);
+  setField(secondSource, b.segunda_fuente?.value ?? null);
+  setField(hypothesisField, b.hipotesis?.value ?? b.intervencion?.value ?? null);
+  setField(metricField, b.senal_cuantitativa?.value ?? null);
+
+  // Experiment card
+  const expHyp = document.querySelector("#experimentHypothesis");
+  const exp = cycle?.experiment ?? {};
+  setField(expHyp, exp.hipotesis?.value ?? (typeof exp.hipotesis === "string" ? exp.hipotesis : null));
+
+  // Progress: count confirmed fields (max 11)
+  const trackFields = [
+    b.behavior_statement, b.nivel_cognitivo, b.causa,
+    b.evidencia_primaria, b.segunda_fuente, b.hipotesis, b.senal_cuantitativa,
+  ];
+  let cnt = trackFields.filter((f) => f?.confirmed).length;
+  if (cycle?.sub_perfil) cnt++;
+  if (cycle?.transicion) cnt++;
+  if (cycle?.causa) cnt++;
+  setBriefProgress(Math.min(cnt, 11));
 }
 
 function downloadBrief() {
   const cycle = getCurrentCycle();
+  const b = cycle?.brief ?? {};
+  const causeMap = { M: "Motivación", A: "Ability", P: "Prompt" };
   const title = cycle?.title ?? "[CONFIRMAR]";
-  const behavior = document.querySelector("#briefBehavior")?.textContent?.trim() ?? "[CONFIRMAR]";
-  const cause = document.querySelector("#briefCause")?.textContent?.trim() ?? "[CONFIRMAR]";
-  const evidence = document.querySelector("#briefEvidence")?.textContent?.trim() ?? "[CONFIRMAR]";
-  const source2 = secondSource?.textContent?.trim() ?? "[CONFIRMAR]";
-  const hypothesis = hypothesisField?.textContent?.trim() ?? "[CONFIRMAR]";
-  const metric = metricField?.textContent?.trim() ?? "[CONFIRMAR]";
+  const behavior = b.behavior_statement?.value ?? "[CONFIRMAR]";
+  const cause = b.causa?.value ?? (cycle?.causa ? `${cycle.causa} · ${causeMap[cycle.causa] ?? cycle.causa}` : "[CONFIRMAR]");
+  const evidence = b.evidencia_primaria?.value ?? "[CONFIRMAR]";
+  const source2 = b.segunda_fuente?.value ?? "[CONFIRMAR]";
+  const hypothesis = b.hipotesis?.value ?? b.intervencion?.value ?? "[CONFIRMAR]";
+  const metric = b.senal_cuantitativa?.value ?? "[CONFIRMAR]";
   const who = currentUser?.email ?? "usuario";
   const when = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
 
@@ -853,6 +911,19 @@ document.querySelector(".filter-row")?.addEventListener("click", (e) => {
     : (f === "patron" || f === "anti_patron") ? patterns.filter((p) => p.tipo === f)
     : patterns.filter((p) => (p.causa ?? "").toUpperCase() === f.toUpperCase());
   renderPatternsList(filtered);
+});
+
+// Pattern library search (in-memory, no fetch)
+document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
+  const term = e.target.value.toLowerCase().trim();
+  if (!term) { renderPatternsList(patterns); return; }
+  renderPatternsList(patterns.filter((p) =>
+    (p.nombre ?? "").toLowerCase().includes(term) ||
+    (p.aprendizaje ?? "").toLowerCase().includes(term) ||
+    (p.sub_perfil ?? "").toLowerCase().includes(term) ||
+    (p.causa ?? "").toLowerCase().includes(term) ||
+    (p.transicion ?? "").toLowerCase().includes(term)
+  ));
 });
 
 // Close cycle button
