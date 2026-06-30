@@ -648,7 +648,7 @@ async function acceptRiskAndAdvance() {
     if (phase.key === "F2") return { ...phase, state: "active", note: "diseñar intervención" };
     return { ...phase, state: phase.state === "active" ? "todo" : phase.state };
   });
-  const patch = { phases, activePhase: "F2", riskAccepted: true };
+  const patch = { phases, activePhase: "F2", fase_actual: "F2", riskAccepted: true };
   await updateCycle(patch);
   // Update local state optimistically
   if (currentCycleId) {
@@ -771,7 +771,7 @@ phaseStepper?.addEventListener("click", async (event) => {
   if (!row || !currentCycleId) return;
   const key = row.dataset.phase;
   const phases = getPhases().map((p) => ({ ...p, state: p.key === key ? "active" : p.state === "active" ? "todo" : p.state }));
-  const patch = { phases, activePhase: key };
+  const patch = { phases, activePhase: key, fase_actual: key };
   cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, ...patch } : c);
   renderStepper();
   await updateCycle(patch);
