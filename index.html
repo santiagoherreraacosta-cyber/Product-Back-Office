@@ -57,6 +57,10 @@
             <span aria-hidden="true">ⓘ</span>
             Contexto Dropi
           </button>
+          <button class="rail-link" type="button" data-view-target="observability">
+            <span aria-hidden="true">◌</span>
+            Observabilidad
+          </button>
         </footer>
       </aside>
 
@@ -130,6 +134,34 @@
             <article class="pattern-card"><span class="type-badge pattern">PATRÓN</span><h2>Reducir pasos de Ability después del primer pedido</h2><div class="chip-row"><span class="chip cause ability"><span class="dot"></span>Ability</span><span class="chip neutral">Rebuscador Digital</span><span class="chip neutral">Setup → Aha</span></div><p><strong>Qué aprendimos:</strong> cuando el seller ya entendió valor, una guía asistida vence más fricción que otro recordatorio.</p><footer><a href="#">Cliff de activación post-Aha</a><span>25 jun · reutilizado 2 veces</span></footer></article>
             <article class="pattern-card"><span class="type-badge anti">ANTI-PATRÓN</span><h2>Mandar más mensajes cuando el bloqueo es operativo</h2><div class="chip-row"><span class="chip cause prompt"><span class="dot"></span>Prompt</span><span class="chip neutral">Seller Explorador</span><span class="chip neutral">Aha → Hábito</span></div><p><strong>Qué aprendimos:</strong> aumentar prompts no compensa un setup incompleto; primero validar Ability.</p><footer><a href="#">Recompra día 7</a><span>18 jun · reutilizado 0 veces</span></footer></article>
           </section>
+        </section>
+
+
+
+        <section id="observabilityView" class="app-view observability-view scrim" hidden>
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">Backend observability</p>
+              <h1>Dashboard interno</h1>
+              <p>Logs estructurados, trazas por etapa, métricas operativas y alertas simuladas para validar la instrumentación del backend antes de conectar APIs reales.</p>
+            </div>
+            <button id="simulateLlmError" class="secondary-action" type="button">Simular error LLM</button>
+          </header>
+          <section id="metricsGrid" class="metrics-grid" aria-label="Métricas básicas"></section>
+          <section class="observability-grid">
+            <article class="ops-card">
+              <header><h2>Trazas recientes</h2><span id="lastRequestId" class="mono-chip">sin requests</span></header>
+              <div id="traceList" class="trace-list"></div>
+            </article>
+            <article class="ops-card">
+              <header><h2>Alertas</h2><span class="status-pill live">live</span></header>
+              <div id="alertsList" class="alerts-list"></div>
+            </article>
+          </section>
+          <article class="ops-card log-card">
+            <header><h2>Logs estructurados por request</h2><span class="mono-chip">JSON console + UI</span></header>
+            <pre id="structuredLogList" class="structured-log-list"></pre>
+          </article>
         </section>
 
         <section id="contextView" class="app-view context-view scrim" hidden>
@@ -219,6 +251,7 @@
         <button type="button" data-palette-command="workspace">Abrir Workspace</button>
         <button type="button" data-palette-command="library">Abrir Biblioteca</button>
         <button type="button" data-palette-command="context">Abrir Contexto Dropi</button>
+        <button type="button" data-palette-command="observability">Abrir Observabilidad</button>
         <button type="button" data-palette-command="brief">Exportar brief Markdown</button>
         <button type="button" data-palette-command="experiment">Mostrar Experiment Card</button>
         <button type="button" data-palette-command="theme">Alternar tema</button>

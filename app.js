@@ -25,6 +25,13 @@ const homeView = document.querySelector("#homeView");
 const workspaceView = document.querySelector("#workspaceView");
 const libraryView = document.querySelector("#libraryView");
 const contextView = document.querySelector("#contextView");
+const observabilityView = document.querySelector("#observabilityView");
+const metricsGrid = document.querySelector("#metricsGrid");
+const traceList = document.querySelector("#traceList");
+const alertsList = document.querySelector("#alertsList");
+const structuredLogList = document.querySelector("#structuredLogList");
+const lastRequestId = document.querySelector("#lastRequestId");
+const simulateLlmError = document.querySelector("#simulateLlmError");
 const newCycleButton = document.querySelector("#newCycleButton");
 const briefSwitch = document.querySelector("#briefSwitch");
 const experimentSwitch = document.querySelector("#experimentSwitch");
@@ -57,6 +64,10 @@ let promptIndex = 0;
 let currentView = "workspace";
 let deliverable = "brief";
 
+const OBSERVABILITY_KEY = "dropi-workspace-observability";
+const OBSERVABILITY_THRESHOLDS = { llmLatencyMs: 1200, estimatedCostUsd: 0.02 };
+let observability = loadObservabilityState();
+
 init();
 
 function init() {
@@ -65,6 +76,7 @@ function init() {
   renderMessages();
   setView("workspace");
   renderBriefState();
+  renderObservabilityDashboard();
   rotatePlaceholder();
   setInterval(rotatePlaceholder, 4200);
 }
@@ -114,7 +126,7 @@ commandPalette.addEventListener("click", (event) => {
   if (event.target === commandPalette) commandPalette.hidden = true;
   const command = event.target.dataset?.paletteCommand;
   if (!command) return;
-  if (["home", "workspace", "library", "context"].includes(command)) setView(command);
+  if (["home", "workspace", "library", "context", "observability"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
   if (command === "brief") downloadBrief();
   if (command === "experiment") setDeliverable("experiment");
@@ -131,6 +143,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 exportBrief.addEventListener("click", downloadBrief);
+simulateLlmError?.addEventListener("click", () => runObservedInteraction("llm_error", "Simulación manual de error LLM", { forceError: true }));
 
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
@@ -141,6 +154,7 @@ document.querySelectorAll("[data-open-workspace], [data-example-cycle]").forEach
 });
 
 newCycleButton?.addEventListener("click", () => {
+  runObservedInteraction("new_cycle", "Nuevo ciclo desde home");
   setView("workspace");
   activePhase = "F0";
   phases = phases.map((phase) => ({ ...phase, state: phase.key === "F0" ? "active" : phase.key === "F1" ? "todo" : phase.state === "done" ? "todo" : phase.state }));
@@ -165,6 +179,7 @@ function setView(view) {
   workspaceView.hidden = view !== "workspace";
   libraryView.hidden = view !== "library";
   contextView.hidden = view !== "context";
+  observabilityView.hidden = view !== "observability";
 }
 
 function setDeliverable(next) {
@@ -272,6 +287,7 @@ function renderGateCard() {
 function sendMessage() {
   const text = messageInput.value.trim();
   if (!text) return;
+  runObservedInteraction("chat_message", text);
   const inner = messageStream.querySelector(".stream-inner");
   inner.insertAdjacentHTML("beforeend", `<div class="user-message">${escapeHtml(text)}</div>`);
   messageInput.value = "";
@@ -311,6 +327,7 @@ function addAiNote(content) {
 }
 
 function acceptRiskAndAdvance() {
+  runObservedInteraction("gate_acceptance", "Avanzar igual con riesgo F1");
   riskAccepted = true;
   localStorage.setItem(RISK_KEY, "true");
   phases = phases.map((phase) => {
@@ -345,6 +362,7 @@ function fillField(element, value) {
 }
 
 function downloadBrief() {
+  runObservedInteraction("brief_export", "Exportar Intervention Brief");
   const markdown = `# Intervention Brief\n\n## Ciclo\nCliff de activación post-Aha\n\n## Comportamiento objetivo\nEl Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.\n\n## Causa B=MAP\nAbility — flujo de envío bloqueado\n\n## Evidencia\n- Cohorte 30d — 7 pasos para configurar envío · n=412\n- ${secondSource.textContent.trim()}\n\n## Riesgos asumidos\n${riskAccepted ? "- F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun." : "- [CONFIRMAR] Sin riesgos aceptados aún."}\n`;
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -353,6 +371,120 @@ function downloadBrief() {
   anchor.download = "intervention-brief-dropi.md";
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+
+function runObservedInteraction(type, input, options = {}) {
+  const requestId = createRequestId();
+  const trace = createTrace(requestId, type);
+  const startedAt = performance.now();
+  let error = null;
+
+  try {
+    recordSpan(trace, "prompt_building", 18 + Math.random() * 24, { template: "dropi-product-assistant", chars: input.length });
+    recordSpan(trace, "retrieval", 36 + Math.random() * 85, { sources: ["context_dropi", "pattern_library"], hits: type === "chat_message" ? 3 : 1 });
+    const llmLatencyMs = options.forceError ? 1460 : 420 + Math.random() * 560;
+    if (options.forceError) throw new Error("LLM provider timeout simulado");
+    recordSpan(trace, "llm_call", llmLatencyMs, { model: "gpt-5.5", status: "ok" });
+    recordSpan(trace, "extraction", 22 + Math.random() * 34, { fields: ["behavior", "evidence", "gate"] });
+    recordSpan(trace, "persistence", 16 + Math.random() * 30, { store: "workspace_state" });
+
+    const tokensInput = Math.round(650 + input.length * 1.6 + Math.random() * 220);
+    const tokensOutput = Math.round(180 + Math.random() * 360);
+    const estimatedCostUsd = Number(((tokensInput * 0.00000125) + (tokensOutput * 0.00001)).toFixed(4));
+    updateObservabilityMetrics(type, { llmLatencyMs, tokensInput, tokensOutput, estimatedCostUsd });
+  } catch (caughtError) {
+    error = caughtError;
+    recordSpan(trace, "llm_call", 1460, { model: "gpt-5.5", status: "error", message: caughtError.message });
+    updateObservabilityMetrics(type, { llmLatencyMs: 1460, tokensInput: 720, tokensOutput: 0, estimatedCostUsd: 0.0009, failed: true });
+  }
+
+  trace.durationMs = Math.round(performance.now() - startedAt + trace.spans.reduce((sum, span) => sum + span.durationMs, 0));
+  trace.status = error ? "error" : "ok";
+  observability.traces.unshift(trace);
+  observability.traces = observability.traces.slice(0, 8);
+  writeStructuredLog({ requestId, level: error ? "error" : "info", event: type, durationMs: trace.durationMs, status: trace.status, error: error?.message });
+  evaluateAlerts(trace);
+  persistObservabilityState();
+  renderObservabilityDashboard();
+  return { requestId, error };
+}
+
+function createRequestId() {
+  return `req_${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function createTrace(requestId, operation) {
+  return { requestId, operation, startedAt: new Date().toISOString(), status: "running", durationMs: 0, spans: [] };
+}
+
+function recordSpan(trace, name, durationMs, attributes = {}) {
+  trace.spans.push({ name, durationMs: Math.round(durationMs), attributes });
+}
+
+function updateObservabilityMetrics(type, sample) {
+  const metrics = observability.metrics;
+  metrics.requests += 1;
+  metrics.llmErrors += sample.failed ? 1 : 0;
+  metrics.llmLatencyMs.push(Math.round(sample.llmLatencyMs));
+  metrics.tokensInput += sample.tokensInput;
+  metrics.tokensOutput += sample.tokensOutput;
+  metrics.estimatedCostUsd = Number((metrics.estimatedCostUsd + sample.estimatedCostUsd).toFixed(4));
+  if (type === "new_cycle") metrics.cyclesCreated += 1;
+  if (type === "gate_acceptance") metrics.gatesAccepted += 1;
+  if (type === "brief_export") metrics.briefsExported += 1;
+  if (/patr[oó]n|anti-patr[oó]n/i.test(type)) metrics.patternsCreated += 1;
+}
+
+function writeStructuredLog(entry) {
+  const log = { timestamp: new Date().toISOString(), service: "product-assistant-backend", environment: "local-prototype", ...entry };
+  observability.logs.unshift(log);
+  observability.logs = observability.logs.slice(0, 14);
+  console.log(JSON.stringify(log));
+}
+
+function evaluateAlerts(trace) {
+  const llmSpan = trace.spans.find((span) => span.name === "llm_call");
+  const metrics = observability.metrics;
+  const alerts = [];
+  if (trace.status === "error") alerts.push({ severity: "critical", title: "Error LLM", detail: `Request ${trace.requestId} falló en llm_call.` });
+  if (llmSpan?.durationMs > OBSERVABILITY_THRESHOLDS.llmLatencyMs) alerts.push({ severity: "warning", title: "Latencia LLM alta", detail: `${llmSpan.durationMs}ms supera ${OBSERVABILITY_THRESHOLDS.llmLatencyMs}ms.` });
+  if (metrics.estimatedCostUsd > OBSERVABILITY_THRESHOLDS.estimatedCostUsd) alerts.push({ severity: "warning", title: "Costo anómalo", detail: `Costo acumulado $${metrics.estimatedCostUsd.toFixed(4)} supera $${OBSERVABILITY_THRESHOLDS.estimatedCostUsd}.` });
+  observability.alerts = [...alerts.map((alert) => ({ ...alert, requestId: trace.requestId, createdAt: new Date().toISOString() })), ...observability.alerts].slice(0, 8);
+}
+
+function renderObservabilityDashboard() {
+  if (!metricsGrid) return;
+  const metrics = observability.metrics;
+  const avgLatency = average(metrics.llmLatencyMs);
+  const latestTrace = observability.traces[0];
+  lastRequestId.textContent = latestTrace?.requestId ?? "sin requests";
+  const cards = [
+    ["Latencia LLM avg", `${avgLatency}ms`], ["Tokens input", metrics.tokensInput.toLocaleString("es-CO")], ["Tokens output", metrics.tokensOutput.toLocaleString("es-CO")], ["Costo estimado", `$${metrics.estimatedCostUsd.toFixed(4)}`],
+    ["Ciclos creados", metrics.cyclesCreated], ["Gates aceptados", metrics.gatesAccepted], ["Briefs exportados", metrics.briefsExported], ["Patrones creados", metrics.patternsCreated],
+  ];
+  metricsGrid.innerHTML = cards.map(([label, value]) => `<article class="metric-card"><span>${label}</span><strong>${value}</strong></article>`).join("");
+  traceList.innerHTML = observability.traces.map(renderTrace).join("") || '<p class="empty-observability">Aún no hay trazas. Envía un mensaje para generar una.</p>';
+  alertsList.innerHTML = observability.alerts.map((alert) => `<div class="alert-row ${alert.severity}"><strong>${alert.title}</strong><span>${alert.detail}</span></div>`).join("") || '<p class="empty-observability">Sin alertas activas.</p>';
+  structuredLogList.textContent = observability.logs.map((log) => JSON.stringify(log, null, 2)).join("\n");
+}
+
+function renderTrace(trace) {
+  return `<div class="trace-row"><div><strong>${trace.operation}</strong><span>${trace.requestId}</span></div><span class="trace-status ${trace.status}">${trace.status}</span>${trace.spans.map((span) => `<small>${span.name}: ${span.durationMs}ms</small>`).join("")}</div>`;
+}
+
+function loadObservabilityState() {
+  const fallback = { metrics: { requests: 0, llmErrors: 0, llmLatencyMs: [], tokensInput: 0, tokensOutput: 0, estimatedCostUsd: 0, cyclesCreated: 0, gatesAccepted: 0, briefsExported: 0, patternsCreated: 0 }, traces: [], logs: [], alerts: [] };
+  try { return JSON.parse(localStorage.getItem(OBSERVABILITY_KEY)) ?? fallback; } catch { return fallback; }
+}
+
+function persistObservabilityState() {
+  localStorage.setItem(OBSERVABILITY_KEY, JSON.stringify(observability));
+}
+
+function average(values) {
+  if (!values.length) return 0;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function rotatePlaceholder() {
