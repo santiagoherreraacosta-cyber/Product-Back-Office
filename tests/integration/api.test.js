@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 let server;
 let BASE;
 
-const AUTH_SECRET = "test-secret-" + crypto.randomBytes(8).toString("hex");
+const AUTH_SECRET = crypto.randomBytes(32).toString("hex");
 
 function b64url(buf) {
   return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
