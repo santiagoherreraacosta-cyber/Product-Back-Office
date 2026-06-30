@@ -124,6 +124,8 @@ function showLogin() {
 function showApp() {
   loginView.hidden = true;
   workspace.hidden = false;
+  const overlay = document.getElementById("appLoadingOverlay");
+  if (overlay) overlay.hidden = false;
   const roleLabel = currentUser?.role === "admin" ? " · admin" : currentUser?.role === "pm" ? " · pm" : "";
   userEmailEl.textContent = (currentUser?.email ?? "") + roleLabel;
 }
@@ -147,6 +149,8 @@ async function login(email, password) {
   const submitBtn = loginForm.querySelector("button[type=submit]");
   submitBtn.disabled = true;
   submitBtn.textContent = "Entrando…";
+  loginEmail.disabled = true;
+  loginPassword.disabled = true;
   try {
     const res = await fetch("/api/auth/login", {
       method: "POST",
@@ -169,6 +173,8 @@ async function login(email, password) {
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = "Entrar";
+    loginEmail.disabled = false;
+    loginPassword.disabled = false;
   }
 }
 
@@ -201,6 +207,8 @@ async function loadInitialData() {
   // Land on Home when no cycles exist so the CTA is the first thing the user sees
   setView(cycles.length ? "workspace" : "home");
   renderBriefState();
+  const overlay = document.getElementById("appLoadingOverlay");
+  if (overlay) overlay.hidden = true;
 }
 
 // --- Cycles ---
@@ -353,6 +361,15 @@ function renderActiveCycle() {
   chatInput?.classList.toggle("is-readonly", isClosed);
   if (messageInput) messageInput.placeholder = isClosed ? "Ciclo cerrado — solo lectura" : "";
   if (placeholder) placeholder.style.display = isClosed ? "none" : "";
+  // Show CTA when cycle is closed and message stream has no closed-note yet
+  const readonlyBanner = document.getElementById("readonlyBanner");
+  if (readonlyBanner) readonlyBanner.hidden = !isClosed;
+  if (isClosed && !messageStream.querySelector(".closed-cycle-note")) {
+    const note = document.createElement("div");
+    note.className = "closed-cycle-note ai-note";
+    note.innerHTML = `Ciclo cerrado. Revisa el patrón en la <button class="inline-link" type="button" onclick="setView('library')">Biblioteca de Patrones</button> o <button class="inline-link" type="button" onclick="document.getElementById('newCycleButton').click()">crea un nuevo ciclo</button>.`;
+    messageStream.appendChild(note);
+  }
 }
 
 async function reusePattern(patternId) {
@@ -389,6 +406,8 @@ async function closeCycle() {
     return;
   }
   if (!confirm(`¿Cerrar el ciclo y crear el patrón "${pattern_name}"? Esta acción no se puede deshacer.`)) return;
+  const closeCycleBtn = document.getElementById("closeCycleButton");
+  if (closeCycleBtn) { closeCycleBtn.disabled = true; closeCycleBtn.textContent = "Guardando…"; }
   try {
     const res = await apiFetch(`/api/cycles/${currentCycleId}/close`, {
       method: "POST",
@@ -419,6 +438,7 @@ async function closeCycle() {
     setView("home");
   } catch {
     showToast("No se pudo cerrar el ciclo. Intenta de nuevo.", true);
+    if (closeCycleBtn) { closeCycleBtn.disabled = false; closeCycleBtn.textContent = "Cerrar ciclo y crear patrón"; }
   }
 }
 
@@ -438,7 +458,7 @@ async function loadPatterns() {
 
 function renderPatternsList(list = patterns) {
   if (!list.length) {
-    patternsList.innerHTML = `<p class="empty-library">Aún no hay patrones. Cierra tu primer ciclo en F5 y aparecerá aquí.</p>`;
+    patternsList.innerHTML = `<p class="empty-library">Aquí aparecerán los aprendizajes del equipo. Para crear el primero, lleva un ciclo hasta F5 · Distill y ciérralo con un aprendizaje.</p>`;
     return;
   }
   const causeLabel = (c) => c === "M" ? "Motivación" : c === "A" ? "Ability" : c === "P" ? "Prompt" : c;
@@ -548,7 +568,7 @@ function setDeliverable(next) {
   briefSwitch.classList.toggle("active", next === "brief");
   experimentSwitch.classList.toggle("active", next === "experiment");
   deliverableTitle.textContent = next === "brief" ? "Intervention Brief" : "Experiment Card";
-  progressText.textContent = next === "brief" ? `${filled} / 11` : "0 / 9";
+  progressText.textContent = next === "brief" ? `${filled} / 11 campos confirmados` : "0 / 9 campos confirmados";
   progressFill.style.width = next === "brief" ? `${Math.round((filled / 11) * 100)}%` : "0%";
 }
 
@@ -798,7 +818,8 @@ function renderBriefState() {
 
 function setBriefProgress(value) {
   filled = value;
-  progressText.textContent = `${filled} / 11`;
+  progressText.textContent = `${filled} / 11 campos confirmados`;
+  progressText.title = "Haz click en cualquier campo [CONFIRMAR] del brief para confirmarlo";
   progressFill.style.width = `${Math.round((filled / 11) * 100)}%`;
 }
 
@@ -850,7 +871,12 @@ function makeFieldEditable(el, cyclePath) {
       }
       if (currentCycleId) {
         cycles = cycles.map((c) => c.id === currentCycleId ? deepMerge(c, patch) : c);
-        try { await updateCycle(patch); } catch { /* non-blocking */ }
+        try {
+          await updateCycle(patch);
+          showToast("Campo guardado ✓");
+        } catch {
+          showToast("Error al guardar el campo.", true);
+        }
       }
       renderActiveCycle();
     };
@@ -1026,12 +1052,12 @@ function downloadBrief() {
 }
 
 // --- Toast ---
-function showToast(message, isError = false) {
+function showToast(message, isError = false, duration = isError ? 5000 : 2800) {
   const el = document.createElement("div");
   el.className = `toast${isError ? " is-error" : ""}`;
   el.textContent = message;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2800);
+  setTimeout(() => el.remove(), duration);
 }
 
 // --- Placeholder rotation ---
@@ -1201,9 +1227,24 @@ document.getElementById("closeCycleButton")?.addEventListener("click", closeCycl
 
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();
-  commandPalette.querySelectorAll("[data-palette-command]").forEach((button) => {
-    button.classList.toggle("is-hidden", !button.textContent.toLowerCase().includes(term));
+  const buttons = commandPalette.querySelectorAll("[data-palette-command]");
+  let visible = 0;
+  buttons.forEach((button) => {
+    const show = !term || button.textContent.toLowerCase().includes(term);
+    button.classList.toggle("is-hidden", !show);
+    if (show) visible++;
   });
+  let emptyEl = commandPalette.querySelector(".palette-empty");
+  if (visible === 0) {
+    if (!emptyEl) {
+      emptyEl = document.createElement("p");
+      emptyEl.className = "palette-empty";
+      emptyEl.textContent = "Sin resultados";
+      commandPalette.querySelector(".palette-card").appendChild(emptyEl);
+    }
+  } else if (emptyEl) {
+    emptyEl.remove();
+  }
 });
 
 // --- Start ---

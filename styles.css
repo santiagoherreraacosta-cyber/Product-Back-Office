@@ -624,3 +624,24 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 /* --- F1→F2 advance button in conversation header --- */
 .advance-phase-btn { font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--orange); background: transparent; color: var(--orange); cursor: pointer; transition: background .1s, color .1s; white-space: nowrap; }
 .advance-phase-btn:hover { background: var(--orange); color: #fff; }
+
+/* --- App loading overlay (T1.1) --- */
+.app-loading-overlay { position: absolute; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 13px; z-index: 100; }
+
+/* --- Confirm field affordance — left border (T2.3) --- */
+.confirm-field { border-left: 2px solid var(--orange-soft, rgba(255,107,0,.25)); padding-left: 6px; transition: border-color .15s; }
+.confirm-field:hover { border-left-color: var(--orange); }
+
+/* --- Palette empty state (T1.4) --- */
+.palette-empty { font-size: 13px; color: var(--text3); padding: 8px 0 4px; margin: 0; }
+
+/* --- Closed cycle note (T1.5) --- */
+.closed-cycle-note { margin: 12px 16px; padding: 10px 14px; background: var(--surface2); border-radius: 8px; border-left: 3px solid var(--orange); font-size: 13px; color: var(--text2); }
+.inline-link { background: none; border: none; padding: 0; color: var(--orange); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
+
+/* --- Readonly banner (T3.2) --- */
+.readonly-banner { position: absolute; top: 0; left: 0; right: 0; background: var(--surface2); border-bottom: 1px solid var(--line); text-align: center; font-size: 11px; font-weight: 600; color: var(--text3); padding: 5px; letter-spacing: .04em; text-transform: uppercase; z-index: 10; }
+
+/* --- Focus ring on interactive buttons (T3.1) --- */
+.bmap-btn:focus-visible,
+.deliverable-switch button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
