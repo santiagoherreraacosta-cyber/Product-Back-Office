@@ -451,3 +451,123 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .context-document header span, .context-document footer span { color: var(--muted); font-size: 12px; }
 .context-document textarea { width: 100%; min-height: 150px; margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--bg); color: var(--text); font: 13px/1.55 "JetBrains Mono", monospace; resize: vertical; }
 .context-document textarea:focus { outline: 2px solid var(--teal-soft); border-color: var(--teal); }
+
+/* --- Login screen --- */
+.login-screen {
+  align-items: center;
+  background: var(--bg, #FAFAF8);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.login-card {
+  background: var(--panel, #fff);
+  border: 1px solid var(--line, #E8E8E3);
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.08);
+  max-width: 400px;
+  padding: 36px 32px;
+  width: 100%;
+}
+.login-brand {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.login-brand strong {
+  color: var(--text, #1F2328);
+  font-size: 16px;
+  font-weight: 700;
+}
+.login-card h1 {
+  color: var(--text, #1F2328);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.login-subtitle {
+  color: var(--text2, #6B7280);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.field-group label {
+  color: var(--text2, #6B7280);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.field-group input {
+  background: var(--bg, #FAFAF8);
+  border: 1px solid var(--line, #E8E8E3);
+  border-radius: 10px;
+  color: var(--text, #1F2328);
+  font-size: 14px;
+  padding: 10px 12px;
+  transition: border-color .15s;
+  width: 100%;
+}
+.field-group input:focus {
+  border-color: #FF6B00;
+  outline: none;
+}
+.login-submit {
+  background: #FF6B00;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(255,107,0,.25);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 8px;
+  padding: 11px;
+  transition: opacity .15s;
+  width: 100%;
+}
+.login-submit:hover { opacity: .88; }
+.login-submit:disabled { opacity: .5; cursor: not-allowed; }
+.login-error {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  color: #EF4444;
+  font-size: 13px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+}
+/* Rail logout button */
+.rail-link--logout {
+  border-top: 1px solid var(--line, #E8E8E3);
+  margin-top: auto;
+  padding-top: 10px;
+}
+.user-email {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+/* Empty library state */
+.empty-library {
+  color: var(--text2, #6B7280);
+  font-size: 14px;
+  grid-column: 1 / -1;
+  padding: 40px 0;
+  text-align: center;
+}
+/* Thinking indicator */
+.thinking { color: var(--text3, #9CA3AF); font-style: italic; }
+/* Active cycle card in grid */
+.dashboard-card.is-active { border-color: #FF6B00; box-shadow: 0 0 0 2px rgba(255,107,0,.15); }
+/* Muted text */
+.muted { color: var(--text2, #6B7280); font-size: 13px; }

@@ -13,7 +13,34 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div id="workspace" class="workspace" data-theme="light">
+    <!-- Login screen (shown when no valid token) -->
+    <div id="loginView" class="login-screen" hidden>
+      <div class="login-card">
+        <div class="login-brand">
+          <span class="logo-box" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4.5 8 12 12.2 19.5 8"/><path d="M12 12.2V21"/></svg>
+          </span>
+          <strong>Asistente Dropi</strong>
+        </div>
+        <h1>Bienvenido</h1>
+        <p class="login-subtitle">Entra con tus credenciales para acceder al workspace.</p>
+        <form id="loginForm" novalidate>
+          <div class="field-group">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" autocomplete="email" placeholder="admin@dropi.co" required />
+          </div>
+          <div class="field-group">
+            <label for="loginPassword">Contraseña</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" required />
+          </div>
+          <p id="loginError" class="login-error" hidden></p>
+          <button class="login-submit" type="submit">Entrar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main app (shown after login) -->
+    <div id="workspace" class="workspace" data-theme="light" hidden>
       <aside class="rail scrim" aria-label="Navegación del workspace">
         <header class="rail-top">
           <div class="brand-lockup">
@@ -27,15 +54,8 @@
 
         <section class="rail-section active-cycle-section">
           <p class="section-label">Ciclo activo</p>
-          <article class="cycle-card">
-            <h2>Cliff de activación post-Aha</h2>
-            <div class="chip-row">
-              <span class="chip neutral">Rebuscador Digital</span>
-              <span class="chip cause ability"><span class="dot"></span>Ability</span>
-            </div>
-            <div class="cognitive-path" aria-label="Transición cognitiva">
-              <span>Setup</span><span>›</span><strong>Aha</strong><span>›</span><span class="muted-step">Hábito</span>
-            </div>
+          <article class="cycle-card" id="activeCycleCard">
+            <p class="muted">Sin ciclo activo</p>
           </article>
         </section>
 
@@ -57,6 +77,10 @@
             <span aria-hidden="true">ⓘ</span>
             Contexto Dropi
           </button>
+          <button id="logoutButton" class="rail-link rail-link--logout" type="button">
+            <span aria-hidden="true">↩</span>
+            <span id="userEmail" class="user-email"></span>
+          </button>
         </footer>
       </aside>
 
@@ -66,75 +90,73 @@
             <div><p class="eyebrow">Home</p><h1>Ciclos</h1><p>Retoma decisiones en curso o arranca desde un comportamiento, no desde una feature.</p></div>
             <button id="newCycleButton" class="primary-action" type="button">Nuevo ciclo</button>
           </header>
-          <div class="filter-row"><button class="filter active" type="button">En curso</button><button class="filter" type="button">Cerrados</button><button class="filter" type="button">Rebuscador Digital</button><button class="filter" type="button">Ability</button></div>
-          <section class="cycle-grid" aria-label="Ciclos en curso">
-            <article class="dashboard-card" data-open-workspace>
-              <div class="card-topline"><span class="status-pill live">En curso</span><span>hace 2h</span></div>
-              <h2>Cliff de activación post-Aha</h2>
-              <div class="chip-row"><span class="chip neutral">Rebuscador Digital</span><span class="chip cause ability"><span class="dot"></span>Ability</span></div>
-              <div class="cognitive-path"><span>Setup</span><span>›</span><strong>Aha</strong><span>›</span><span class="muted-step">Hábito</span></div>
-              <div class="mini-stepper" aria-label="Fases F0 a F5"><span class="done"></span><span class="active"></span><span></span><span class="skipped"></span><span></span><span></span></div>
-              <footer><strong>F1 · Diagnose</strong><span class="risk-count">1 riesgo abierto</span></footer>
-            </article>
-            <article class="dashboard-card" data-open-workspace>
-              <div class="card-topline"><span class="status-pill iterating">Iterando</span><span>ayer</span></div>
-              <h2>Recompra día 7 sin prompt útil</h2>
-              <div class="chip-row"><span class="chip neutral">Seller Explorador</span><span class="chip cause prompt"><span class="dot"></span>Prompt</span></div>
-              <div class="cognitive-path"><span>Aha</span><span>›</span><strong>Hábito</strong><span>›</span><span class="muted-step">Maestría</span></div>
-              <div class="mini-stepper"><span class="done"></span><span class="done"></span><span class="active"></span><span></span><span></span><span></span></div>
-              <footer><strong>F2 · Design</strong><span>sin riesgos</span></footer>
-            </article>
+          <div id="cyclesList" class="cycle-grid" aria-label="Ciclos"></div>
+          <section class="empty-teacher" id="emptyCycles">
+            <p>Empieza por un comportamiento, no por una feature. ¿Qué seller, haciendo qué, no está haciendo qué?</p>
+            <button class="primary-action" type="button" id="newCycleEmpty">Nuevo ciclo</button>
           </section>
-          <section class="empty-teacher"><p>Empieza por un comportamiento, no por una feature. ¿Qué seller, haciendo qué, no está haciendo qué?</p><div><button type="button" data-example-cycle>Activación post-Aha</button><button type="button" data-example-cycle>Recompra día 7</button></div></section>
         </section>
+
         <section id="workspaceView" class="workspace-view">
-        <header class="conversation-header">
-          <div class="phase-chip">
-            <span class="live-dot"></span>
-            <strong id="activePhaseLabel">F1 · Diagnose</strong>
-            <span class="chip-divider"></span>
-            <span id="activePhaseNote">falta 2ª fuente</span>
-          </div>
-          <span class="cycle-name">Cliff de activación post-Aha</span>
-          <button id="commandButton" class="command-button" type="button">⌘K</button>
-        </header>
-
-        <section id="messageStream" class="message-stream scrim" aria-live="polite"></section>
-
-        <form id="chatForm" class="chat-input-wrap">
-          <div class="chat-input">
-            <label class="sr-only" for="messageInput">Mensaje</label>
-            <textarea id="messageInput" rows="2" autocomplete="off"></textarea>
-            <div class="placeholder-line" id="rotatingPlaceholder" aria-hidden="true">
-              ¿Qué comportamiento debe ocurrir, y por qué no ocurre hoy?<span class="caret"></span>
+          <header class="conversation-header">
+            <div class="phase-chip">
+              <span class="live-dot"></span>
+              <strong id="activePhaseLabel">—</strong>
+              <span class="chip-divider"></span>
+              <span id="activePhaseNote"></span>
             </div>
-            <div class="input-meta-row">
-              <div class="command-chips">
-                <button type="button" data-command="/nuevo-ciclo">/nuevo-ciclo</button>
-                <button type="button" data-command="/brief">/brief</button>
-                <button type="button" data-command="/experimento">/experimento</button>
+            <span class="cycle-name" id="activeCycleName">Sin ciclo activo</span>
+            <button id="commandButton" class="command-button" type="button">⌘K</button>
+          </header>
+
+          <section id="messageStream" class="message-stream scrim" aria-live="polite"></section>
+
+          <form id="chatForm" class="chat-input-wrap">
+            <div class="chat-input">
+              <label class="sr-only" for="messageInput">Mensaje</label>
+              <textarea id="messageInput" rows="2" autocomplete="off"></textarea>
+              <div class="placeholder-line" id="rotatingPlaceholder" aria-hidden="true">
+                ¿Qué comportamiento debe ocurrir, y por qué no ocurre hoy?<span class="caret"></span>
               </div>
-              <div class="send-area">
-                <span>⌘↵ enviar</span>
-                <button class="send-button" type="submit" aria-label="Enviar">➜</button>
+              <div class="input-meta-row">
+                <div class="command-chips">
+                  <button type="button" data-command="/nuevo-ciclo">/nuevo-ciclo</button>
+                  <button type="button" data-command="/brief">/brief</button>
+                  <button type="button" data-command="/experimento">/experimento</button>
+                </div>
+                <div class="send-area">
+                  <span>⌘↵ enviar</span>
+                  <button class="send-button" type="submit" aria-label="Enviar">➜</button>
+                </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
         </section>
 
         <section id="libraryView" class="app-view library-view scrim" hidden>
-          <header class="page-header"><div><p class="eyebrow">Memoria del equipo</p><h1>Biblioteca de Patrones</h1><p>Patrones y anti-patrones aprendidos al cerrar ciclos en F5.</p></div><input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" /></header>
-          <div class="filter-row"><button class="filter active">Todos</button><button class="filter">Patrón</button><button class="filter">Anti-patrón</button><button class="filter cause-filter motivation"><span></span>Motivación</button><button class="filter cause-filter ability"><span></span>Ability</button><button class="filter cause-filter prompt"><span></span>Prompt</button></div>
-          <section class="pattern-grid">
-            <article class="pattern-card"><span class="type-badge pattern">PATRÓN</span><h2>Reducir pasos de Ability después del primer pedido</h2><div class="chip-row"><span class="chip cause ability"><span class="dot"></span>Ability</span><span class="chip neutral">Rebuscador Digital</span><span class="chip neutral">Setup → Aha</span></div><p><strong>Qué aprendimos:</strong> cuando el seller ya entendió valor, una guía asistida vence más fricción que otro recordatorio.</p><footer><a href="#">Cliff de activación post-Aha</a><span>25 jun · reutilizado 2 veces</span></footer></article>
-            <article class="pattern-card"><span class="type-badge anti">ANTI-PATRÓN</span><h2>Mandar más mensajes cuando el bloqueo es operativo</h2><div class="chip-row"><span class="chip cause prompt"><span class="dot"></span>Prompt</span><span class="chip neutral">Seller Explorador</span><span class="chip neutral">Aha → Hábito</span></div><p><strong>Qué aprendimos:</strong> aumentar prompts no compensa un setup incompleto; primero validar Ability.</p><footer><a href="#">Recompra día 7</a><span>18 jun · reutilizado 0 veces</span></footer></article>
-          </section>
+          <header class="page-header">
+            <div><p class="eyebrow">Memoria del equipo</p><h1>Biblioteca de Patrones</h1><p>Patrones y anti-patrones aprendidos al cerrar ciclos en F5.</p></div>
+            <input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" />
+          </header>
+          <div class="filter-row">
+            <button class="filter active">Todos</button>
+            <button class="filter">Patrón</button>
+            <button class="filter">Anti-patrón</button>
+            <button class="filter cause-filter motivation"><span></span>Motivación</button>
+            <button class="filter cause-filter ability"><span></span>Ability</button>
+            <button class="filter cause-filter prompt"><span></span>Prompt</button>
+          </div>
+          <div id="patternsList" class="pattern-grid" aria-live="polite"></div>
         </section>
 
         <section id="contextView" class="app-view context-view scrim" hidden>
           <aside class="toc"><a href="#doctrina">Doctrina</a><a href="#cognitiva">Mapa cognitivo</a><a href="#perfiles">Perfiles</a><a href="#okrs">OKRs</a></aside>
-          <article class="doc-body"><div id="contextPendingBanner" class="confirm-banner">Cargando contexto…</div><h1 id="doctrina">Contexto Dropi</h1><p>Base de conocimiento persistida, versionada y editable por admins.</p><div id="contextDocuments" class="context-documents" aria-live="polite"></div></article>
+          <article class="doc-body">
+            <div id="contextPendingBanner" class="confirm-banner">Cargando contexto…</div>
+            <h1 id="doctrina">Contexto Dropi</h1>
+            <p>Base de conocimiento persistida, versionada y editable por admins.</p>
+            <div id="contextDocuments" class="context-documents" aria-live="polite"></div>
+          </article>
         </section>
       </main>
 
@@ -144,43 +166,46 @@
             <div class="doc-title">
               <span aria-hidden="true">▤</span>
               <strong id="deliverableTitle">Intervention Brief</strong>
-              <span class="deliverable-switch"><button id="briefSwitch" class="active" type="button">Brief</button><button id="experimentSwitch" type="button">Experiment Card</button></span>
+              <span class="deliverable-switch">
+                <button id="briefSwitch" class="active" type="button">Brief</button>
+                <button id="experimentSwitch" type="button">Experiment Card</button>
+              </span>
               <span class="live-badge"><span class="dot"></span>En vivo</span>
             </div>
             <button id="exportBrief" class="export-button" type="button">↧ Exportar brief</button>
           </div>
           <div class="progress-row">
             <div class="progress-track"><span id="briefProgressFill"></span></div>
-            <strong id="briefProgressText">6 / 11</strong>
+            <strong id="briefProgressText">0 / 11</strong>
           </div>
         </header>
 
         <section id="briefBody" class="brief-body">
           <div class="brief-block">
             <p class="section-label">Ciclo</p>
-            <p class="mono-value">Cliff de activación post-Aha</p>
+            <p class="mono-value" id="briefCycleTitle">[CONFIRMAR]</p>
           </div>
           <div class="brief-block">
             <p class="section-label">Comportamiento objetivo</p>
-            <p id="briefBehavior" class="mono-value fillable">El Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.</p>
+            <p id="briefBehavior" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
           </div>
           <div class="brief-grid">
             <div class="brief-block">
               <p class="section-label">Sub-perfil</p>
-              <p class="mono-value">Rebuscador Digital</p>
+              <p id="briefSubProfile" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
             </div>
             <div class="brief-block">
               <p class="section-label">Nivel cognitivo</p>
-              <p class="mono-value">Setup → Aha</p>
+              <p id="briefCogLevel" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
             </div>
           </div>
           <div class="brief-block">
             <p class="section-label">Causa (B=MAP)</p>
-            <span class="chip cause ability"><span class="dot"></span>Ability — flujo de envío bloqueado</span>
+            <p id="briefCause" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
           </div>
           <div class="brief-block">
             <p class="section-label">Evidencia</p>
-            <p class="mono-value">Cohorte 30d — 7 pasos para configurar envío · n=412</p>
+            <p id="briefEvidence" class="confirm-field"><strong>[CONFIRMAR]</strong> evidencia primaria pendiente</p>
             <p id="secondSource" class="confirm-field"><strong>[CONFIRMAR]</strong> 2ª fuente pendiente</p>
           </div>
           <div class="brief-block">
@@ -192,21 +217,25 @@
             <p id="metricField" class="confirm-field"><strong>[CONFIRMAR]</strong></p>
           </div>
         </section>
+
         <section id="experimentBody" class="brief-body" hidden>
-          <div class="brief-block"><p class="section-label">Hipótesis</p><p class="mono-value">Si reducimos la configuración de envío, aumentará el 2º envío en 72h.</p></div>
-          <div class="brief-block"><p class="section-label">Variable / intervención</p><p class="confirm-field"><strong>[CONFIRMAR]</strong> guía asistida de configuración</p></div>
-          <div class="brief-grid"><div class="brief-block"><p class="section-label">Métrica primaria</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div><div class="brief-block"><p class="section-label">Criterio de stop</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div></div>
-          <div class="brief-grid"><div class="brief-block"><p class="section-label">Tamaño muestra</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div><div class="brief-block"><p class="section-label">Duración</p><p class="mono-value">14 días</p></div></div>
-          <div class="brief-block"><p class="section-label">Tracking</p><p class="confirm-field"><strong>[CONFIRMAR]</strong> eventos de envío configurado</p></div>
+          <div class="brief-block"><p class="section-label">Hipótesis</p><p id="experimentHypothesis" class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+          <div class="brief-block"><p class="section-label">Variable / intervención</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+          <div class="brief-grid">
+            <div class="brief-block"><p class="section-label">Métrica primaria</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+            <div class="brief-block"><p class="section-label">Criterio de stop</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+          </div>
+          <div class="brief-grid">
+            <div class="brief-block"><p class="section-label">Tamaño muestra</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+            <div class="brief-block"><p class="section-label">Duración</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
+          </div>
+          <div class="brief-block"><p class="section-label">Tracking</p><p class="confirm-field"><strong>[CONFIRMAR]</strong></p></div>
           <div class="running-status"><span></span>Borrador · listo para F3</div>
         </section>
 
         <footer class="risk-footer">
           <p class="section-label">Riesgos asumidos</p>
-          <div id="riskTag" class="risk-tag">
-            <span>F1</span>
-            Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun.
-          </div>
+          <div id="riskTag" class="risk-tag is-hidden"></div>
         </footer>
       </aside>
     </div>

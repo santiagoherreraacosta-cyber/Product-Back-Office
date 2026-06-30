@@ -149,11 +149,13 @@ function findUser(email, password) {
 const routePermissions = {
   "GET /api/auth/me": ["admin", "pm", "viewer"],
   "POST /api/auth/login": null,
-  // Context: public read, legacy X-Admin-Role write (vanilla UI has no JWT flow)
+  // Context: public read; write requires admin JWT
   "GET /api/context": null,
-  "PATCH /api/context": null,
-  // Chat: public (frontend has no JWT flow yet; rate limiting still applies)
+  "PATCH /api/context": ["admin"],
+  // Chat: public (rate limiting still applies)
   "POST /api/chat": null,
+  // Health check: public
+  "GET /health": null,
   "GET /api/cycles": ["admin", "pm", "viewer"],
   "POST /api/cycles": ["admin", "pm"],
   "PATCH /api/cycles": ["admin", "pm"],
@@ -365,7 +367,7 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/chat") {
     const body = await readBody(req);
     const { message, cycleId } = body;
-    if (!message) return json(res, { error: "message required" }, 400);
+    if (!message?.trim()) return json(res, { error: "message required" }, 400);
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     if (!ANTHROPIC_API_KEY) {
@@ -398,7 +400,13 @@ async function handle(req, res) {
 
     const data = await llmRes.json();
     const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
+    logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
     return json(res, { reply });
+  }
+
+  // --- Health check ---
+  if (req.method === "GET" && pathname === "/health") {
+    return json(res, { status: "ok", uptime: Math.floor(process.uptime()) });
   }
 
   // --- Audit events (PR #12) ---
