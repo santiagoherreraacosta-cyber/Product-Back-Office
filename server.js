@@ -127,16 +127,22 @@ function findUser(email, password) {
 }
 
 // --- Route permissions ---
+// null = public (no token required); array = allowed roles; undefined = default-deny
 const routePermissions = {
   "GET /api/auth/me": ["admin", "pm", "viewer"],
-  "POST /api/auth/login": null, // public
+  "POST /api/auth/login": null,
+  // Context: public read, legacy X-Admin-Role write (vanilla UI has no JWT flow)
+  "GET /api/context": null,
+  "PATCH /api/context": null,
   "GET /api/cycles": ["admin", "pm", "viewer"],
   "POST /api/cycles": ["admin", "pm"],
-  "GET /api/context": ["admin", "pm", "viewer"],
-  "PATCH /api/context": ["admin", "pm"],
+  "PATCH /api/cycles": ["admin", "pm"],
+  "PUT /api/cycles": ["admin", "pm"],
+  "DELETE /api/cycles": ["admin", "pm"],
   "GET /api/patterns": ["admin", "pm", "viewer"],
   "POST /api/patterns": ["admin", "pm"],
   "PATCH /api/patterns": ["admin", "pm"],
+  "POST /api/patterns/reuse": ["admin", "pm"],
   "GET /api/audit-events": ["admin"],
 };
 
@@ -159,10 +165,11 @@ function checkRateLimit(ip) {
 
 // --- Audit logging ---
 function logAudit(actor, action, resource, meta = {}) {
-  const event = { id: `evt-${Date.now()}-${Math.random().toString(36).slice(2,7)}`, actor, action, resource, meta, timestamp: new Date().toISOString() };
+  const event = { id: `evt-${crypto.randomUUID()}`, actor, action, resource, meta, timestamp: new Date().toISOString() };
   auditEvents.push(event);
   if (auditEvents.length > 10000) auditEvents = auditEvents.slice(-10000);
-  persistAuditEvents();
+  // Fire-and-forget: explicitly void to satisfy linters
+  void persistAuditEvents();
   return event;
 }
 
@@ -259,7 +266,7 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/cycles") {
     const body = await readBody(req);
     if (!body.title) return json(res, { error: "title required" }, 400);
-    const cycle = { id: `cycle-${Date.now()}`, ...body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: currentUser?.sub };
+    const cycle = { id: `cycle-${crypto.randomUUID()}`, ...body, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: currentUser?.sub };
     cycles.set(cycle.id, cycle);
     logAudit(currentUser?.email, "cycle_created", cycle.id);
     return json(res, cycle, 201);
@@ -297,7 +304,7 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/patterns") {
     const body = await readBody(req);
     if (!body.name) return json(res, { error: "name required" }, 400);
-    const pattern = { id: `pat-${Date.now()}`, ...body, createdAt: new Date().toISOString(), createdBy: currentUser?.sub };
+    const pattern = { id: `pat-${crypto.randomUUID()}`, ...body, createdAt: new Date().toISOString(), createdBy: currentUser?.sub };
     patterns.push(pattern);
     await persistPatterns();
     logAudit(currentUser?.email, "pattern_created", pattern.id, { name: pattern.name });
@@ -322,7 +329,7 @@ async function handle(req, res) {
       const pattern = patterns.find((p) => p.id === patId);
       if (!pattern) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
-      const reuse = { id: `pat-${Date.now()}`, ...pattern, ...body, id: `pat-${Date.now()}`, reusedFrom: patId, createdAt: new Date().toISOString(), createdBy: currentUser?.sub };
+      const reuse = { ...pattern, ...body, id: `pat-${crypto.randomUUID()}`, reusedFrom: patId, createdAt: new Date().toISOString(), createdBy: currentUser?.sub };
       patterns.push(reuse);
       await persistPatterns();
       logAudit(currentUser?.email, "pattern_reused", patId, { newId: reuse.id });
@@ -346,14 +353,16 @@ async function handle(req, res) {
   res.end(content);
 }
 
-loadData().then(() => {
-  http.createServer(async (req, res) => {
-    try {
-      await handle(req, res);
-    } catch (error) {
-      if (error.code === "ENOENT") return json(res, { error: "Not found" }, 404);
-      if (error instanceof SyntaxError) return json(res, { error: "Invalid JSON" }, 400);
-      json(res, { error: error.message }, error.statusCode || 500);
-    }
-  }).listen(PORT, "0.0.0.0", () => console.log(`Dropi Product Assistant en http://0.0.0.0:${PORT}`));
-});
+loadData()
+  .then(() => {
+    http.createServer(async (req, res) => {
+      try {
+        await handle(req, res);
+      } catch (error) {
+        if (error.code === "ENOENT") return json(res, { error: "Not found" }, 404);
+        if (error instanceof SyntaxError) return json(res, { error: "Invalid JSON" }, 400);
+        json(res, { error: error.message }, error.statusCode || 500);
+      }
+    }).listen(PORT, "0.0.0.0", () => console.log(`Dropi Product Assistant en http://0.0.0.0:${PORT}`));
+  })
+  .catch((err) => { console.error("Failed to start server:", err); process.exit(1); });
