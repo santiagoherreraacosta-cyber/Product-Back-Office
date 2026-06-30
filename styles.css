@@ -445,3 +445,57 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .palette-input { min-width: 100%; }
 .palette-card button.is-hidden { display: none; }
 @media (max-width: 1120px) { .cycle-grid, .pattern-grid { grid-template-columns: 1fr; } .context-view { grid-template-columns: 1fr; } .toc { display: none; } }
+
+.auth-overlay {
+  align-items: center;
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 20;
+}
+.auth-overlay[hidden] { display: none; }
+.auth-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.18);
+  display: grid;
+  gap: 12px;
+  max-width: 440px;
+  padding: 28px;
+  width: 100%;
+}
+.auth-card h1 { font-size: 24px; letter-spacing: -.03em; line-height: 1.1; margin: 0; }
+.auth-card p { color: var(--text2); margin: 0; }
+.auth-card label { color: var(--text2); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.auth-card select {
+  background: var(--elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 11px 12px;
+}
+.auth-error { color: var(--red) !important; min-height: 20px; }
+.auth-pill {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 6px 4px 10px;
+}
+.auth-pill span { color: var(--text2); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-pill strong { background: var(--orange-soft); border-radius: 999px; color: var(--orange); font-size: 10px; padding: 2px 6px; }
+.auth-pill button { background: transparent; border: 0; color: var(--text3); font-size: 11px; }
+.audit-status { color: var(--text3); font-size: 11px; margin: 0 0 10px; }
+.context-save { margin-top: 10px; }
+.editable-block[contenteditable="true"]:focus {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}

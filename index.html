@@ -14,6 +14,21 @@
   </head>
   <body>
     <div id="workspace" class="workspace" data-theme="light">
+      <section id="authOverlay" class="auth-overlay">
+        <form id="loginForm" class="auth-card">
+          <p class="section-label">Auth · SSO interno Dropi</p>
+          <h1>Inicia sesión para entrar al Back Office</h1>
+          <p>Proveedor elegido: <strong>SSO interno</strong>. Roles disponibles: <code>pm</code>, <code>admin</code>, <code>viewer</code>.</p>
+          <label for="authEmail">Usuario</label>
+          <select id="authEmail">
+            <option value="santiago@dropi.local">Santiago · pm</option>
+            <option value="valentina@dropi.local">Valentina · admin</option>
+            <option value="mateo@dropi.local">Mateo · viewer</option>
+          </select>
+          <button class="primary-action" type="submit">Entrar con SSO interno</button>
+          <p id="authError" class="auth-error" role="alert"></p>
+        </form>
+      </section>
       <aside class="rail scrim" aria-label="Navegación del workspace">
         <header class="rail-top">
           <div class="brand-lockup">
@@ -22,7 +37,7 @@
             </span>
             <strong>Asistente Dropi</strong>
           </div>
-          <button id="themeToggle" class="icon-button" type="button" aria-label="Alternar tema">☾</button>
+          <div class="auth-pill"><span id="authUserLabel">Sin sesión</span><strong id="authRoleLabel">login requerido</strong><button id="logoutButton" type="button" hidden>Salir</button></div><button id="themeToggle" class="icon-button" type="button" aria-label="Alternar tema">☾</button>
         </header>
 
         <section class="rail-section active-cycle-section">
@@ -134,7 +149,7 @@
 
         <section id="contextView" class="app-view context-view scrim" hidden>
           <aside class="toc"><a href="#doctrina">Doctrina</a><a href="#cognitiva">Mapa cognitivo</a><a href="#perfiles">Perfiles</a><a href="#okrs">OKRs</a></aside>
-          <article class="doc-body"><div class="confirm-banner">3 campos sin confirmar — la IA los tratará como supuestos.</div><h1 id="doctrina">Contexto Dropi</h1><p>Base de conocimiento editable para doctrina, perfiles, OKRs y Dropi Score.</p><h2 id="cognitiva">Mapa de evolución cognitiva</h2><table class="cognitive-table"><thead><tr><th>Nivel</th><th>Definición</th><th>Señales</th><th>Intervención típica</th><th>Métrica</th></tr></thead><tbody><tr><td>Setup</td><td>Configura lo mínimo para operar.</td><td>Conecta tienda, ve catálogo.</td><td>Reducir Ability.</td><td><span class="inline-confirm">[CONFIRMAR]</span></td></tr><tr><td>Aha</td><td>Entiende el valor con una acción real.</td><td>Primer pedido.</td><td>Refuerzo + siguiente paso.</td><td>TTV neto</td></tr></tbody></table><h2 id="perfiles">Perfiles</h2><div class="editable-block">Rebuscador Digital: seller que explora oportunidades y necesita claridad del siguiente paso rentable.</div><h2 id="okrs">OKRs</h2><p><span class="inline-confirm">[CONFIRMAR]</span> baseline y meta Q3.</p></article>
+          <article class="doc-body"><div class="confirm-banner">3 campos sin confirmar — la IA los tratará como supuestos.</div><h1 id="doctrina">Contexto Dropi</h1><p>Base de conocimiento editable para doctrina, perfiles, OKRs y Dropi Score.</p><h2 id="cognitiva">Mapa de evolución cognitiva</h2><table class="cognitive-table"><thead><tr><th>Nivel</th><th>Definición</th><th>Señales</th><th>Intervención típica</th><th>Métrica</th></tr></thead><tbody><tr><td>Setup</td><td>Configura lo mínimo para operar.</td><td>Conecta tienda, ve catálogo.</td><td>Reducir Ability.</td><td><span class="inline-confirm">[CONFIRMAR]</span></td></tr><tr><td>Aha</td><td>Entiende el valor con una acción real.</td><td>Primer pedido.</td><td>Refuerzo + siguiente paso.</td><td>TTV neto</td></tr></tbody></table><h2 id="perfiles">Perfiles</h2><div id="contextProfile" class="editable-block" contenteditable="true">Rebuscador Digital: seller que explora oportunidades y necesita claridad del siguiente paso rentable.</div><button id="saveContextButton" class="secondary-action context-save" type="button">Guardar Contexto Dropi</button><h2 id="okrs">OKRs</h2><p><span class="inline-confirm">[CONFIRMAR]</span> baseline y meta Q3.</p></article>
         </section>
       </main>
 
@@ -202,6 +217,7 @@
         </section>
 
         <footer class="risk-footer">
+          <p id="auditStatus" class="audit-status">Auditoría lista para riesgo, gates, Contexto Dropi y exportaciones.</p>
           <p class="section-label">Riesgos asumidos</p>
           <div id="riskTag" class="risk-tag">
             <span>F1</span>

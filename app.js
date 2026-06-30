@@ -1,5 +1,7 @@
 const THEME_KEY = "dropi-workspace-theme";
 const RISK_KEY = "dropi-workspace-risk-accepted";
+const AUTH_TOKEN_KEY = "dropi-auth-token";
+const AUTH_USER_KEY = "dropi-auth-user";
 
 const workspace = document.querySelector("#workspace");
 const phaseStepper = document.querySelector("#phaseStepper");
@@ -32,6 +34,16 @@ const deliverableTitle = document.querySelector("#deliverableTitle");
 const briefBody = document.querySelector("#briefBody");
 const experimentBody = document.querySelector("#experimentBody");
 const paletteSearch = document.querySelector("#paletteSearch");
+const authOverlay = document.querySelector("#authOverlay");
+const loginForm = document.querySelector("#loginForm");
+const authEmail = document.querySelector("#authEmail");
+const authError = document.querySelector("#authError");
+const authUserLabel = document.querySelector("#authUserLabel");
+const authRoleLabel = document.querySelector("#authRoleLabel");
+const logoutButton = document.querySelector("#logoutButton");
+const auditStatus = document.querySelector("#auditStatus");
+const contextProfile = document.querySelector("#contextProfile");
+const saveContextButton = document.querySelector("#saveContextButton");
 
 const phaseSeed = [
   { key: "F0", label: "Sense", state: "done" },
@@ -56,11 +68,15 @@ let filled = riskAccepted ? 7 : 6;
 let promptIndex = 0;
 let currentView = "workspace";
 let deliverable = "brief";
+let authToken = localStorage.getItem(AUTH_TOKEN_KEY);
+let currentUser = JSON.parse(localStorage.getItem(AUTH_USER_KEY) || "null");
 
 init();
 
 function init() {
   applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  renderAuthState();
+  fetchProtectedSeedData();
   renderStepper();
   renderMessages();
   setView("workspace");
@@ -132,6 +148,30 @@ document.addEventListener("keydown", (event) => {
 
 exportBrief.addEventListener("click", downloadBrief);
 
+loginForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  authError.textContent = "";
+  try {
+    const session = await apiFetch("/api/auth/login", { method: "POST", body: { email: authEmail.value } }, false);
+    authToken = session.token;
+    currentUser = session.user;
+    localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(currentUser));
+    renderAuthState();
+    fetchProtectedSeedData();
+  } catch (error) {
+    authError.textContent = error.message;
+  }
+});
+
+logoutButton?.addEventListener("click", () => {
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+  renderAuthState();
+});
+
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
@@ -151,12 +191,57 @@ newCycleButton?.addEventListener("click", () => {
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
 
+saveContextButton?.addEventListener("click", async () => {
+  try {
+    await apiFetch("/api/context", { method: "PUT", body: { profile: contextProfile.textContent.trim() } });
+    auditStatus.textContent = `Contexto Dropi editado por ${currentUser.email}`;
+  } catch (error) {
+    auditStatus.textContent = `No se pudo guardar Contexto Dropi: ${error.message}`;
+  }
+});
+
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();
   commandPalette.querySelectorAll("[data-palette-command]").forEach((button) => {
     button.classList.toggle("is-hidden", !button.textContent.toLowerCase().includes(term));
   });
 });
+
+function renderAuthState() {
+  const isSignedIn = Boolean(authToken && currentUser);
+  authOverlay.hidden = isSignedIn;
+  authUserLabel.textContent = isSignedIn ? currentUser.name : "Sin sesión";
+  authRoleLabel.textContent = isSignedIn ? currentUser.role : "login requerido";
+  logoutButton.hidden = !isSignedIn;
+}
+
+async function fetchProtectedSeedData() {
+  if (!authToken) return;
+  try {
+    await Promise.all([apiFetch("/api/cycles"), apiFetch("/api/context"), apiFetch("/api/patterns")]);
+    auditStatus.textContent = "Endpoints protegidos activos · proveedor: SSO interno";
+  } catch (error) {
+    auditStatus.textContent = `Auth: ${error.message}`;
+  }
+}
+
+async function apiFetch(path, options = {}, requireAuth = true) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (requireAuth && authToken) headers.Authorization = `Bearer ${authToken}`;
+  const response = await fetch(path, { ...options, headers, body: options.body ? JSON.stringify(options.body) : undefined });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Error de API");
+  return payload;
+}
+
+async function audit(action, target, metadata = {}) {
+  try {
+    const { event } = await apiFetch("/api/audit-events", { method: "POST", body: { action, target, metadata } });
+    auditStatus.textContent = `Auditado: ${event.action} por ${event.actorEmail}`;
+  } catch (error) {
+    auditStatus.textContent = `Auditoría pendiente: ${error.message}`;
+  }
+}
 
 function setView(view) {
   currentView = view;
@@ -221,6 +306,7 @@ function renderMessages() {
     </div>`;
 
   messageStream.querySelector("#closeGate")?.addEventListener("click", () => {
+    audit("gate.closed", "cycle_activation_aha", { phase: "F1", resolution: "second_source_required" });
     addAiNote("Perfecto. Mantengo F1 abierto. Busca una 2ª fuente: entrevista breve, sesión grabada o evento de abandono en configuración de envío.");
   });
 
@@ -274,6 +360,9 @@ function sendMessage() {
   if (!text) return;
   const inner = messageStream.querySelector(".stream-inner");
   inner.insertAdjacentHTML("beforeend", `<div class="user-message">${escapeHtml(text)}</div>`);
+  apiFetch("/api/chat", { method: "POST", body: { message: text, cycleId: "cycle_activation_aha" } }).catch((error) => {
+    auditStatus.textContent = `Chat API bloqueado: ${error.message}`;
+  });
   messageInput.value = "";
   chatInput.classList.remove("has-text");
 
@@ -287,6 +376,7 @@ function sendMessage() {
     fillField(hypothesisField, "Si reducimos la configuración de envío de 7 pasos a una guía asistida, aumentará el 2º envío en 72h porque baja la fricción Ability.");
     setBriefProgress(8);
     setDeliverable("experiment");
+    audit("experiment.exported", "cycle_activation_aha", { deliverable: "experiment" });
     addAiNote("Detecto intención de pasar a F3. Puedo ayudarte, pero dejo visible el gate F1 si no cerramos la segunda fuente.");
     return;
   }
@@ -311,6 +401,7 @@ function addAiNote(content) {
 }
 
 function acceptRiskAndAdvance() {
+  audit("risk.accepted", "cycle_activation_aha", { phase: "F1", risk: "Diagnóstico con 1 sola fuente" });
   riskAccepted = true;
   localStorage.setItem(RISK_KEY, "true");
   phases = phases.map((phase) => {
@@ -346,6 +437,7 @@ function fillField(element, value) {
 
 function downloadBrief() {
   const markdown = `# Intervention Brief\n\n## Ciclo\nCliff de activación post-Aha\n\n## Comportamiento objetivo\nEl Rebuscador Digital configura su 2º envío dentro de las 72h posteriores al primer pedido.\n\n## Causa B=MAP\nAbility — flujo de envío bloqueado\n\n## Evidencia\n- Cohorte 30d — 7 pasos para configurar envío · n=412\n- ${secondSource.textContent.trim()}\n\n## Riesgos asumidos\n${riskAccepted ? "- F1: Diagnóstico con 1 sola fuente. Riesgo aceptado por Santiago · 25 jun." : "- [CONFIRMAR] Sin riesgos aceptados aún."}\n`;
+  audit("brief.exported", "cycle_activation_aha", { deliverable });
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
