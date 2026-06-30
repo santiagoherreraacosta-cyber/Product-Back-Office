@@ -445,3 +445,9 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 .palette-input { min-width: 100%; }
 .palette-card button.is-hidden { display: none; }
 @media (max-width: 1120px) { .cycle-grid, .pattern-grid { grid-template-columns: 1fr; } .context-view { grid-template-columns: 1fr; } .toc { display: none; } }
+.view-state { margin: 0 auto; max-width: 1080px; }
+.state-card { background: var(--panel); border: 1px dashed var(--border); border-radius: 14px; color: var(--text2); font-size: 13px; padding: 16px; }
+.state-card.error { border-color: color-mix(in srgb, var(--red) 45%, var(--border)); color: var(--red); }
+.primary-action:disabled { cursor: wait; opacity: .65; }
+.editable-block[contenteditable="true"] { outline: 2px solid transparent; }
+.editable-block[contenteditable="true"]:focus { border-color: var(--orange); outline-color: var(--orange-soft); }

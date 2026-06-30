@@ -32,6 +32,13 @@ const deliverableTitle = document.querySelector("#deliverableTitle");
 const briefBody = document.querySelector("#briefBody");
 const experimentBody = document.querySelector("#experimentBody");
 const paletteSearch = document.querySelector("#paletteSearch");
+const cycleGrid = document.querySelector("#cycleGrid");
+const cycleState = document.querySelector("#cycleState");
+const patternGrid = document.querySelector("#patternGrid");
+const patternState = document.querySelector("#patternState");
+const patternSearch = document.querySelector("#patternSearch");
+const patternFilters = document.querySelector("#patternFilters");
+const contextBody = document.querySelector("#contextBody");
 
 const phaseSeed = [
   { key: "F0", label: "Sense", state: "done" },
@@ -56,6 +63,13 @@ let filled = riskAccepted ? 7 : 6;
 let promptIndex = 0;
 let currentView = "workspace";
 let deliverable = "brief";
+let cycles = [];
+let patterns = [];
+let contextPayload = null;
+let cyclesLoaded = false;
+let patternsLoaded = false;
+let contextLoaded = false;
+const patternFilterState = { type: "all", cause: "all", subprofile: "all", cognitiveLevel: "all", search: "" };
 
 init();
 
@@ -65,6 +79,7 @@ function init() {
   renderMessages();
   setView("workspace");
   renderBriefState();
+  loadCycles();
   rotatePlaceholder();
   setInterval(rotatePlaceholder, 4200);
 }
@@ -136,20 +151,27 @@ viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
 });
 
-document.querySelectorAll("[data-open-workspace], [data-example-cycle]").forEach((item) => {
+document.querySelectorAll("[data-example-cycle]").forEach((item) => {
   item.addEventListener("click", () => setView("workspace"));
 });
 
-newCycleButton?.addEventListener("click", () => {
-  setView("workspace");
-  activePhase = "F0";
-  phases = phases.map((phase) => ({ ...phase, state: phase.key === "F0" ? "active" : phase.key === "F1" ? "todo" : phase.state === "done" ? "todo" : phase.state }));
-  renderStepper();
-  addAiNote("Nuevo ciclo en F0 · Sense. Empecemos por el comportamiento: ¿qué seller, haciendo qué, no está haciendo qué?");
-});
+newCycleButton?.addEventListener("click", createCycle);
 
 briefSwitch?.addEventListener("click", () => setDeliverable("brief"));
 experimentSwitch?.addEventListener("click", () => setDeliverable("experiment"));
+
+patternSearch?.addEventListener("input", () => {
+  patternFilterState.search = patternSearch.value.trim().toLowerCase();
+  renderPatterns();
+});
+
+patternFilters?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-filter-kind]");
+  if (!button) return;
+  patternFilterState[button.dataset.filterKind] = button.dataset.filterValue;
+  renderPatternFilters();
+  renderPatterns();
+});
 
 paletteSearch?.addEventListener("input", () => {
   const term = paletteSearch.value.toLowerCase();
@@ -165,6 +187,173 @@ function setView(view) {
   workspaceView.hidden = view !== "workspace";
   libraryView.hidden = view !== "library";
   contextView.hidden = view !== "context";
+  if (view === "home" && !cyclesLoaded) loadCycles();
+  if (view === "library" && !patternsLoaded) loadPatterns();
+  if (view === "context" && !contextLoaded) loadContext();
+}
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.status === 204 ? null : response.json();
+}
+
+function listFromPayload(payload, key) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.[key])) return payload[key];
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+async function loadCycles() {
+  cyclesLoaded = true;
+  cycleGrid.innerHTML = "";
+  cycleState.innerHTML = '<div class="state-card">Cargando ciclos…</div>';
+  try {
+    cycles = listFromPayload(await fetchJson("/api/cycles"), "cycles");
+    renderCycles();
+  } catch (error) {
+    cycleState.innerHTML = `<div class="state-card error">No pudimos cargar los ciclos. ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderCycles() {
+  if (!cycles.length) {
+    cycleGrid.innerHTML = "";
+    cycleState.innerHTML = '<div class="state-card">No hay ciclos todavía. Crea uno nuevo para empezar en F0 · Sense.</div>';
+    return;
+  }
+  cycleState.innerHTML = "";
+  cycleGrid.innerHTML = cycles.map(renderCycleCard).join("");
+  cycleGrid.querySelectorAll("[data-open-workspace]").forEach((item) => item.addEventListener("click", () => setView("workspace")));
+}
+
+function renderCycleCard(cycle) {
+  const cause = normalizeCause(cycle.cause || cycle.primaryCause);
+  const status = cycle.status || "En curso";
+  const cognitive = cycle.cognitiveLevel || cycle.cognitivePath || "Setup → Aha";
+  const [from, to, next] = String(cognitive).split(/→|>/).map((item) => item.trim());
+  const phase = cycle.phase || cycle.currentPhase || "F0 · Sense";
+  return `<article class="dashboard-card" data-open-workspace data-cycle-id="${escapeHtml(String(cycle.id ?? ""))}">
+    <div class="card-topline"><span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span><span>${escapeHtml(cycle.updatedAtLabel || cycle.updatedAt || "")}</span></div>
+    <h2>${escapeHtml(cycle.title || cycle.name || "Ciclo sin título")}</h2>
+    <div class="chip-row"><span class="chip neutral">${escapeHtml(cycle.subprofile || cycle.segment || "Sin subperfil")}</span><span class="chip cause ${cause}"><span class="dot"></span>${escapeHtml(cycle.cause || cycle.primaryCause || "Sin causa")}</span></div>
+    <div class="cognitive-path"><span>${escapeHtml(from || "Setup")}</span><span>›</span><strong>${escapeHtml(to || from || "Aha")}</strong>${next ? `<span>›</span><span class="muted-step">${escapeHtml(next)}</span>` : ""}</div>
+    <div class="mini-stepper">${renderMiniStepper(cycle.phaseIndex ?? 0)}</div>
+    <footer><strong>${escapeHtml(phase)}</strong><span>${escapeHtml(cycle.riskSummary || "sin riesgos")}</span></footer>
+  </article>`;
+}
+
+async function createCycle() {
+  newCycleButton.disabled = true;
+  try {
+    const cycle = await fetchJson("/api/cycles", { method: "POST", body: JSON.stringify({ source: "home" }) });
+    if (cycle) cycles = [cycle, ...cycles];
+    renderCycles();
+    setView("workspace");
+    activePhase = "F0";
+    phases = phases.map((phase) => ({ ...phase, state: phase.key === "F0" ? "active" : phase.state === "active" ? "todo" : phase.state }));
+    renderStepper();
+    addAiNote("Nuevo ciclo creado desde la API en F0 · Sense.");
+  } catch (error) {
+    cycleState.innerHTML = `<div class="state-card error">No pudimos crear el ciclo. ${escapeHtml(error.message)}</div>`;
+  } finally {
+    newCycleButton.disabled = false;
+  }
+}
+
+async function loadPatterns() {
+  patternsLoaded = true;
+  patternGrid.innerHTML = "";
+  patternState.innerHTML = '<div class="state-card">Cargando patrones…</div>';
+  try {
+    patterns = listFromPayload(await fetchJson("/api/patterns"), "patterns");
+    renderPatternFilters();
+    renderPatterns();
+  } catch (error) {
+    patternState.innerHTML = `<div class="state-card error">No pudimos cargar la biblioteca. ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderPatternFilters() {
+  const groups = [
+    ["type", "Tipo", ["all", ...unique(patterns.map((p) => p.type))]],
+    ["cause", "Causa", ["all", ...unique(patterns.map((p) => p.cause))]],
+    ["subprofile", "Subperfil", ["all", ...unique(patterns.map((p) => p.subprofile || p.segment))]],
+    ["cognitiveLevel", "Nivel", ["all", ...unique(patterns.map((p) => p.cognitiveLevel || p.cognitivePath))]],
+  ];
+  patternFilters.innerHTML = groups.map(([kind, label, values]) => values.map((value) => `<button class="filter ${patternFilterState[kind] === value ? "active" : ""} ${kind === "cause" && value !== "all" ? `cause-filter ${normalizeCause(value)}` : ""}" type="button" data-filter-kind="${kind}" data-filter-value="${escapeHtml(String(value))}">${kind === "cause" && value !== "all" ? "<span></span>" : ""}${value === "all" ? `Todos ${label}` : escapeHtml(String(value))}</button>`).join("")).join("");
+}
+
+function renderPatterns() {
+  const filtered = patterns.filter(matchesPatternFilters);
+  patternGrid.innerHTML = filtered.map(renderPatternCard).join("");
+  patternState.innerHTML = filtered.length ? "" : '<div class="state-card">No hay patrones que coincidan con los filtros o la búsqueda.</div>';
+}
+
+function matchesPatternFilters(pattern) {
+  const haystack = [pattern.title, pattern.summary, pattern.learning, pattern.cause, pattern.subprofile, pattern.segment, pattern.cognitiveLevel, pattern.cognitivePath, pattern.cycleName].join(" ").toLowerCase();
+  return ["type", "cause"].every((key) => patternFilterState[key] === "all" || String(pattern[key]).toLowerCase() === patternFilterState[key].toLowerCase())
+    && (patternFilterState.subprofile === "all" || String(pattern.subprofile || pattern.segment).toLowerCase() === patternFilterState.subprofile.toLowerCase())
+    && (patternFilterState.cognitiveLevel === "all" || String(pattern.cognitiveLevel || pattern.cognitivePath).toLowerCase() === patternFilterState.cognitiveLevel.toLowerCase())
+    && (!patternFilterState.search || haystack.includes(patternFilterState.search));
+}
+
+function renderPatternCard(pattern) {
+  const type = pattern.type || "Patrón";
+  const cause = normalizeCause(pattern.cause);
+  return `<article class="pattern-card"><span class="type-badge ${/anti/i.test(type) ? "anti" : "pattern"}">${escapeHtml(type)}</span><h2>${escapeHtml(pattern.title || "Patrón sin título")}</h2><div class="chip-row"><span class="chip cause ${cause}"><span class="dot"></span>${escapeHtml(pattern.cause || "Sin causa")}</span><span class="chip neutral">${escapeHtml(pattern.subprofile || pattern.segment || "Sin subperfil")}</span><span class="chip neutral">${escapeHtml(pattern.cognitiveLevel || pattern.cognitivePath || "Sin nivel")}</span></div><p><strong>Qué aprendimos:</strong> ${escapeHtml(pattern.learning || pattern.summary || "Sin aprendizaje registrado.")}</p><footer><a href="${escapeHtml(pattern.cycleUrl || "#")}">${escapeHtml(pattern.cycleName || "Ciclo relacionado")}</a><span>${escapeHtml(pattern.meta || pattern.reusedLabel || "")}</span></footer></article>`;
+}
+
+async function loadContext() {
+  contextLoaded = true;
+  contextBody.innerHTML = '<div class="state-card">Cargando contexto…</div>';
+  try {
+    contextPayload = await fetchJson("/api/context");
+    renderContext();
+  } catch (error) {
+    contextBody.innerHTML = `<div class="state-card error">No pudimos cargar el contexto. ${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderContext() {
+  const sections = listFromPayload(contextPayload, "sections");
+  const canEdit = Boolean(contextPayload?.permissions?.canEdit || contextPayload?.canEdit);
+  const pending = countPendingConfirmations(sections);
+  contextBody.innerHTML = `<div class="confirm-banner">${pending} campos sin confirmar — la IA los tratará como supuestos.</div><h1 id="doctrina">Contexto Dropi</h1><p>Base de conocimiento editable para doctrina, perfiles, OKRs y Dropi Score.</p>${sections.map((section) => renderContextSection(section, canEdit)).join("")}`;
+}
+
+function renderContextSection(section, canEdit) {
+  const fields = Array.isArray(section.fields) ? section.fields : [];
+  const content = fields.length ? fields.map((field) => `<div class="editable-block" ${canEdit ? 'contenteditable="true"' : ""}><strong>${escapeHtml(field.label || field.name || "Campo")}</strong>: ${escapeHtml(field.value || "")} ${field.confirmed === false ? '<span class="inline-confirm">[CONFIRMAR]</span>' : ""}</div>`).join("") : `<div class="editable-block" ${canEdit ? 'contenteditable="true"' : ""}>${escapeHtml(section.content || "")}${section.confirmed === false ? ' <span class="inline-confirm">[CONFIRMAR]</span>' : ""}</div>`;
+  return `<h2 id="${escapeHtml(section.id || slug(section.title || "seccion"))}">${escapeHtml(section.title || "Sección")}</h2>${content}`;
+}
+
+function countPendingConfirmations(sections) {
+  return sections.reduce((count, section) => count + (section.confirmed === false ? 1 : 0) + (section.fields || []).filter((field) => field.confirmed === false).length, 0);
+}
+
+function renderMiniStepper(activeIndex) {
+  return Array.from({ length: 6 }, (_, index) => `<span class="${index < activeIndex ? "done" : index === activeIndex ? "active" : ""}"></span>`).join("");
+}
+
+function normalizeCause(value = "") {
+  const text = String(value).toLowerCase();
+  if (text.includes("mot")) return "motivation";
+  if (text.includes("prompt")) return "prompt";
+  return text.includes("abil") ? "ability" : "neutral";
+}
+
+function statusClass(status = "") {
+  return /iter/i.test(status) ? "iterating" : "live";
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean).map(String))];
+}
+
+function slug(value) {
+  return String(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function setDeliverable(next) {

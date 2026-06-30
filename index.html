@@ -67,24 +67,8 @@
             <button id="newCycleButton" class="primary-action" type="button">Nuevo ciclo</button>
           </header>
           <div class="filter-row"><button class="filter active" type="button">En curso</button><button class="filter" type="button">Cerrados</button><button class="filter" type="button">Rebuscador Digital</button><button class="filter" type="button">Ability</button></div>
-          <section class="cycle-grid" aria-label="Ciclos en curso">
-            <article class="dashboard-card" data-open-workspace>
-              <div class="card-topline"><span class="status-pill live">En curso</span><span>hace 2h</span></div>
-              <h2>Cliff de activación post-Aha</h2>
-              <div class="chip-row"><span class="chip neutral">Rebuscador Digital</span><span class="chip cause ability"><span class="dot"></span>Ability</span></div>
-              <div class="cognitive-path"><span>Setup</span><span>›</span><strong>Aha</strong><span>›</span><span class="muted-step">Hábito</span></div>
-              <div class="mini-stepper" aria-label="Fases F0 a F5"><span class="done"></span><span class="active"></span><span></span><span class="skipped"></span><span></span><span></span></div>
-              <footer><strong>F1 · Diagnose</strong><span class="risk-count">1 riesgo abierto</span></footer>
-            </article>
-            <article class="dashboard-card" data-open-workspace>
-              <div class="card-topline"><span class="status-pill iterating">Iterando</span><span>ayer</span></div>
-              <h2>Recompra día 7 sin prompt útil</h2>
-              <div class="chip-row"><span class="chip neutral">Seller Explorador</span><span class="chip cause prompt"><span class="dot"></span>Prompt</span></div>
-              <div class="cognitive-path"><span>Aha</span><span>›</span><strong>Hábito</strong><span>›</span><span class="muted-step">Maestría</span></div>
-              <div class="mini-stepper"><span class="done"></span><span class="done"></span><span class="active"></span><span></span><span></span><span></span></div>
-              <footer><strong>F2 · Design</strong><span>sin riesgos</span></footer>
-            </article>
-          </section>
+          <section id="cycleGrid" class="cycle-grid" aria-label="Ciclos en curso"></section>
+          <section id="cycleState" class="view-state" aria-live="polite"></section>
           <section class="empty-teacher"><p>Empieza por un comportamiento, no por una feature. ¿Qué seller, haciendo qué, no está haciendo qué?</p><div><button type="button" data-example-cycle>Activación post-Aha</button><button type="button" data-example-cycle>Recompra día 7</button></div></section>
         </section>
         <section id="workspaceView" class="workspace-view">
@@ -125,16 +109,14 @@
 
         <section id="libraryView" class="app-view library-view scrim" hidden>
           <header class="page-header"><div><p class="eyebrow">Memoria del equipo</p><h1>Biblioteca de Patrones</h1><p>Patrones y anti-patrones aprendidos al cerrar ciclos en F5.</p></div><input id="patternSearch" class="search-input" placeholder="Busca por segmento, causa o palabra…" /></header>
-          <div class="filter-row"><button class="filter active">Todos</button><button class="filter">Patrón</button><button class="filter">Anti-patrón</button><button class="filter cause-filter motivation"><span></span>Motivación</button><button class="filter cause-filter ability"><span></span>Ability</button><button class="filter cause-filter prompt"><span></span>Prompt</button></div>
-          <section class="pattern-grid">
-            <article class="pattern-card"><span class="type-badge pattern">PATRÓN</span><h2>Reducir pasos de Ability después del primer pedido</h2><div class="chip-row"><span class="chip cause ability"><span class="dot"></span>Ability</span><span class="chip neutral">Rebuscador Digital</span><span class="chip neutral">Setup → Aha</span></div><p><strong>Qué aprendimos:</strong> cuando el seller ya entendió valor, una guía asistida vence más fricción que otro recordatorio.</p><footer><a href="#">Cliff de activación post-Aha</a><span>25 jun · reutilizado 2 veces</span></footer></article>
-            <article class="pattern-card"><span class="type-badge anti">ANTI-PATRÓN</span><h2>Mandar más mensajes cuando el bloqueo es operativo</h2><div class="chip-row"><span class="chip cause prompt"><span class="dot"></span>Prompt</span><span class="chip neutral">Seller Explorador</span><span class="chip neutral">Aha → Hábito</span></div><p><strong>Qué aprendimos:</strong> aumentar prompts no compensa un setup incompleto; primero validar Ability.</p><footer><a href="#">Recompra día 7</a><span>18 jun · reutilizado 0 veces</span></footer></article>
-          </section>
+          <div id="patternFilters" class="filter-row"></div>
+          <section id="patternGrid" class="pattern-grid" aria-live="polite"></section>
+          <section id="patternState" class="view-state" aria-live="polite"></section>
         </section>
 
         <section id="contextView" class="app-view context-view scrim" hidden>
           <aside class="toc"><a href="#doctrina">Doctrina</a><a href="#cognitiva">Mapa cognitivo</a><a href="#perfiles">Perfiles</a><a href="#okrs">OKRs</a></aside>
-          <article class="doc-body"><div class="confirm-banner">3 campos sin confirmar — la IA los tratará como supuestos.</div><h1 id="doctrina">Contexto Dropi</h1><p>Base de conocimiento editable para doctrina, perfiles, OKRs y Dropi Score.</p><h2 id="cognitiva">Mapa de evolución cognitiva</h2><table class="cognitive-table"><thead><tr><th>Nivel</th><th>Definición</th><th>Señales</th><th>Intervención típica</th><th>Métrica</th></tr></thead><tbody><tr><td>Setup</td><td>Configura lo mínimo para operar.</td><td>Conecta tienda, ve catálogo.</td><td>Reducir Ability.</td><td><span class="inline-confirm">[CONFIRMAR]</span></td></tr><tr><td>Aha</td><td>Entiende el valor con una acción real.</td><td>Primer pedido.</td><td>Refuerzo + siguiente paso.</td><td>TTV neto</td></tr></tbody></table><h2 id="perfiles">Perfiles</h2><div class="editable-block">Rebuscador Digital: seller que explora oportunidades y necesita claridad del siguiente paso rentable.</div><h2 id="okrs">OKRs</h2><p><span class="inline-confirm">[CONFIRMAR]</span> baseline y meta Q3.</p></article>
+          <article id="contextBody" class="doc-body" aria-live="polite"></article>
         </section>
       </main>
 
