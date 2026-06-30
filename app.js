@@ -192,18 +192,18 @@ async function loadInitialData() {
 
 // --- Cycles ---
 async function loadCycles() {
+  cyclesList.innerHTML = `<p class="loading-state">Cargando ciclos…</p>`;
   try {
     const res = await fetch("/api/cycles", { headers: authHeaders() });
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(`Error ${res.status}`);
     cycles = await res.json();
-    // Auto-select most recent cycle
     if (cycles.length && !currentCycleId) {
       currentCycleId = cycles[cycles.length - 1].id;
     }
     renderCyclesList();
     renderActiveCycle();
   } catch {
-    console.warn("No se pudieron cargar los ciclos.");
+    cyclesList.innerHTML = `<p class="error-state">No se pudieron cargar los ciclos. <button onclick="loadCycles()">Reintentar</button></p>`;
   }
 }
 
@@ -359,6 +359,7 @@ async function closeCycle() {
     alert("Completa el aprendizaje y el nombre del patrón para cerrar el ciclo.");
     return;
   }
+  if (!confirm(`¿Cerrar el ciclo y crear el patrón "${pattern_name}"? Esta acción no se puede deshacer.`)) return;
   try {
     const res = await fetch(`/api/cycles/${currentCycleId}/close`, {
       method: "POST",
@@ -395,11 +396,13 @@ async function closeCycle() {
 async function loadPatterns() {
   try {
     const res = await fetch("/api/patterns", { headers: authHeaders() });
-    if (!res.ok) return;
+    if (!res.ok) throw new Error(`Error ${res.status}`);
     patterns = await res.json();
     if (currentView === "library") renderPatternsList();
   } catch {
-    console.warn("No se pudieron cargar los patrones.");
+    if (currentView === "library") {
+      patternsList.innerHTML = `<p class="error-state">No se pudieron cargar los patrones. <button onclick="loadPatterns()">Reintentar</button></p>`;
+    }
   }
 }
 
@@ -497,11 +500,13 @@ async function saveContextDocument(section) {
       throw new Error(err.error || `Error ${response.status}`);
     }
     contextLoaded = false;
+    showToast("Contexto guardado.");
     await loadContextDocuments();
   } catch (error) {
-    button.textContent = error.message;
+    showToast(error.message, true);
   } finally {
     button.disabled = false;
+    button.textContent = "Guardar como admin";
   }
 }
 
@@ -724,10 +729,18 @@ function loadBriefFromCycle(cycle) {
   setField(hypothesisField, b.hipotesis?.value ?? b.intervencion?.value ?? null);
   setField(metricField, b.senal_cuantitativa?.value ?? null);
 
-  // Experiment card
-  const expHyp = document.querySelector("#experimentHypothesis");
+  // Experiment card — all fields
   const exp = cycle?.experiment ?? {};
-  setField(expHyp, exp.hipotesis?.value ?? (typeof exp.hipotesis === "string" ? exp.hipotesis : null));
+  const expStr = (v) => v?.value ?? (typeof v === "string" ? v : null);
+  setField(document.querySelector("#experimentHypothesis"), expStr(exp.hipotesis));
+  setField(document.querySelector("#experimentVariable"), expStr(exp.variable));
+  setField(document.querySelector("#experimentMetric"), expStr(exp.metrica_primaria));
+  setField(document.querySelector("#experimentStop"), expStr(exp.criterio_stop));
+  setField(document.querySelector("#experimentSample"), expStr(exp.tamano_muestra));
+  setField(document.querySelector("#experimentDuration"), expStr(exp.duracion));
+  const trackVal = Array.isArray(exp.tracking_eventos) && exp.tracking_eventos.length
+    ? exp.tracking_eventos.join(", ") : expStr(exp.tracking_eventos);
+  setField(document.querySelector("#experimentTracking"), trackVal);
 
   // Progress: count confirmed fields (max 11)
   const trackFields = [
@@ -793,6 +806,15 @@ function downloadBrief() {
   anchor.download = `intervention-brief-${(title).toLowerCase().replace(/\s+/g, "-").slice(0, 40)}.md`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+// --- Toast ---
+function showToast(message, isError = false) {
+  const el = document.createElement("div");
+  el.className = `toast${isError ? " is-error" : ""}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
 }
 
 // --- Placeholder rotation ---
@@ -913,17 +935,21 @@ document.querySelector(".filter-row")?.addEventListener("click", (e) => {
   renderPatternsList(filtered);
 });
 
-// Pattern library search (in-memory, no fetch)
+// Pattern library search (in-memory, debounced 200ms)
+let _searchTimer = null;
 document.querySelector("#patternSearch")?.addEventListener("input", (e) => {
-  const term = e.target.value.toLowerCase().trim();
-  if (!term) { renderPatternsList(patterns); return; }
-  renderPatternsList(patterns.filter((p) =>
-    (p.nombre ?? "").toLowerCase().includes(term) ||
-    (p.aprendizaje ?? "").toLowerCase().includes(term) ||
-    (p.sub_perfil ?? "").toLowerCase().includes(term) ||
-    (p.causa ?? "").toLowerCase().includes(term) ||
-    (p.transicion ?? "").toLowerCase().includes(term)
-  ));
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => {
+    const term = e.target.value.toLowerCase().trim();
+    if (!term) { renderPatternsList(patterns); return; }
+    renderPatternsList(patterns.filter((p) =>
+      (p.nombre ?? "").toLowerCase().includes(term) ||
+      (p.aprendizaje ?? "").toLowerCase().includes(term) ||
+      (p.sub_perfil ?? "").toLowerCase().includes(term) ||
+      (p.causa ?? "").toLowerCase().includes(term) ||
+      (p.transicion ?? "").toLowerCase().includes(term)
+    ));
+  }, 200);
 });
 
 // Close cycle button
