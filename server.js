@@ -30,24 +30,36 @@ const rateBuckets = new Map();
 let auditEvents = [];
 let patterns = [];
 
-// Load persisted data at startup (best-effort)
+// Load persisted data at startup (best-effort; missing files are expected on first run)
 async function loadData() {
   try {
     const raw = await fs.readFile(path.join(ROOT, "data/audit_events.json"), "utf8");
     auditEvents = JSON.parse(raw);
-  } catch {}
+  } catch (err) {
+    if (err.code !== "ENOENT") console.warn("Could not load audit_events.json:", err.message);
+  }
   try {
     const raw = await fs.readFile(path.join(ROOT, "data/patterns.json"), "utf8");
     patterns = JSON.parse(raw);
-  } catch {}
+  } catch (err) {
+    if (err.code !== "ENOENT") console.warn("Could not load patterns.json:", err.message);
+  }
 }
 
 async function persistAuditEvents() {
-  try { await fs.writeFile(path.join(ROOT, "data/audit_events.json"), JSON.stringify(auditEvents, null, 2)); } catch {}
+  try {
+    await fs.writeFile(path.join(ROOT, "data/audit_events.json"), JSON.stringify(auditEvents, null, 2));
+  } catch (err) {
+    console.warn("Could not persist audit_events.json:", err.message);
+  }
 }
 
 async function persistPatterns() {
-  try { await fs.writeFile(path.join(ROOT, "data/patterns.json"), JSON.stringify(patterns, null, 2)); } catch {}
+  try {
+    await fs.writeFile(path.join(ROOT, "data/patterns.json"), JSON.stringify(patterns, null, 2));
+  } catch (err) {
+    console.warn("Could not persist patterns.json:", err.message);
+  }
 }
 
 // --- JWT (HMAC-SHA256, no external deps) ---
