@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://PLACEHOLDER_RAILWAY_URL/api/:path*" }
+    { "source": "/api/:path*", "destination": "https://product-lens-production-e4cb.up.railway.app/api/:path*" }
   ]
 }
