@@ -6,11 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "check": "node --check app.js && node --check server.js && node --check src/contextStore.js && node --check src/contextRetriever.js",
-    "lint": "node --check app.js && node --check server.js && node --check server/src/db/index.js && node --check server/src/db/migrate.js",
+    "lint": "node --check app.js && node --check server.js && node --check src/phaseEngine.js && node --check src/extraction.js && node --check src/exportService.js",
     "test": "node scripts/test-runner.mjs",
     "e2e": "node scripts/e2e-runner.mjs",
-    "build": "node --check app.js && node --check server.js",
-    "db:migrate": "node server/src/db/migrate.js"
+    "build": "node --check app.js && node --check server.js"
   },
   "dependencies": {
     "pg": "^8.13.1"

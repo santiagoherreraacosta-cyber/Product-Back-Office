@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { extractValidatedPatches, validateModelResponse } from "../../server/src/services/extractionService.js";
+import { extractValidatedPatches, validateModelResponse } from "../../src/extraction.js";
 
 const conversation = "Sellers no configuran el segundo envío. Identificamos Ability como causa.";
 

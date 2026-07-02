@@ -10,7 +10,7 @@ import {
   generateExecutiveSummaryMarkdown,
   generateFullCycleMarkdown,
   markdownToPdfHtml,
-} from "../server/src/services/exportService.js";
+} from "../src/exportService.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)));
 

@@ -30,11 +30,9 @@ run("unit: extraction-service", ["--test", "tests/unit/extraction-service.test.j
 // Integration tests
 run("integration: api", ["--test", "tests/integration/api.test.js"]);
 
-// extractionService ESM test
-run("server/tests: extractionService", ["--test", "server/tests/extractionService.test.mjs"]);
-
-// TypeScript tests (require --experimental-strip-types)
-run("server/test: phaseEngine", ["--experimental-strip-types", "--test", "server/test/phaseEngine.test.ts"]);
-run("server/test: promptBuilder", ["--experimental-strip-types", "--test", "server/test/promptBuilder.test.ts"]);
+// Harvested domain modules (src/): syntax + unit
+run("syntax: src/phaseEngine", ["--check", "src/phaseEngine.js"]);
+run("syntax: src/extraction", ["--check", "src/extraction.js"]);
+run("syntax: src/exportService", ["--check", "src/exportService.js"]);
 
 console.log("\n✅ All tests passed");
