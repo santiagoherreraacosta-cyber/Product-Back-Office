@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createDefaultExportState, generateInterventionBriefMarkdown, generateExperimentCardMarkdown, markdownToPdfHtml } from "../../server/src/services/exportService.js";
+import { createDefaultExportState, generateInterventionBriefMarkdown, generateExperimentCardMarkdown, markdownToPdfHtml } from "../../src/exportService.js";
 
 test("createDefaultExportState returns complete state", () => {
   const state = createDefaultExportState();
