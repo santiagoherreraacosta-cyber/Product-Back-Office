@@ -240,6 +240,13 @@ async function createCycle(title) {
         riskAccepted: false,
       }),
     });
+    if (res.status === 422) {
+      // F0 validation: the title reads like a feature, not a behavior.
+      const err = await res.json().catch(() => ({}));
+      setView("workspace");
+      addFeatureRejection(err.error ?? "Eso es una solución, no un comportamiento.", err.hint);
+      return;
+    }
     if (!res.ok) return;
     const cycle = await res.json();
     cycles.push(cycle);
@@ -253,6 +260,16 @@ async function createCycle(title) {
   } catch {
     console.warn("No se pudo crear el ciclo.");
   }
+}
+
+// F0: red bubble when the input is a feature/solution instead of a behavior.
+function addFeatureRejection(message, hint) {
+  const inner = messageStream.querySelector(".stream-inner") || messageStream;
+  inner.insertAdjacentHTML(
+    "beforeend",
+    `<div class="feature-reject"><strong>${escapeHtml(message)}</strong>${hint ? `<p>${escapeHtml(hint)}</p>` : ""}</div>`
+  );
+  messageStream.scrollTop = messageStream.scrollHeight;
 }
 
 async function updateCycle(patch) {
@@ -344,16 +361,15 @@ function renderActiveCycle() {
   briefCycleTitle.textContent = cycle.title;
   // Show close panel only in F5 and only for active cycles
   if (closePanel) closePanel.hidden = !(active === "F5" && cycle.estado === "activo");
-  // Show F1→F2 advance button with appropriate label based on diagnosis quality
+  // Advance button: shown in any active phase F0–F4 (F5 uses the close panel).
+  // The server validates the gate; label points to the next phase.
   const advanceBtn = document.querySelector("#advancePhaseBtn");
   if (advanceBtn) {
-    const showAdvance = active === "F1" && cycle.estado === "activo";
+    const order = ["F0", "F1", "F2", "F3", "F4", "F5"];
+    const idx = order.indexOf(active);
+    const showAdvance = cycle.estado === "activo" && idx >= 0 && idx < 5;
     advanceBtn.hidden = !showAdvance;
-    if (showAdvance) {
-      const clean = !!(cycle.causa && cycle.brief?.evidencia_primaria?.confirmed);
-      advanceBtn.textContent = clean ? "Avanzar a F2 ✓" : "Avanzar a F2 con riesgo ⚠";
-      advanceBtn.dataset.clean = clean ? "1" : "";
-    }
+    if (showAdvance) advanceBtn.textContent = `Avanzar a ${order[idx + 1]} →`;
   }
   // Populate brief panel from real cycle data
   loadBriefFromCycle(cycle);
@@ -426,8 +442,19 @@ async function closeCycle() {
       alert(err.error ?? "Error al cerrar el ciclo.");
       return;
     }
-    const { cycle, pattern } = await res.json();
+    const data = await res.json();
+    const { cycle, pattern, iterated } = data;
     cycles = cycles.map((c) => (c.id === cycle.id ? cycle : c));
+    if (iterated) {
+      // Iteration loop: cycle went back to F1 instead of closing.
+      renderCyclesList();
+      renderActiveCycle();
+      renderStepper();
+      renderIterationBanner(cycle.iterationCount ?? 2);
+      addAiNote(`Iteración ${cycle.iterationCount ?? 2} — de vuelta en F1 · Diagnose para re-diagnosticar.`);
+      if (closeCycleBtn) { closeCycleBtn.disabled = false; closeCycleBtn.textContent = "Cerrar ciclo y crear patrón"; }
+      return;
+    }
     patterns.push(pattern);
     renderCyclesList();
     renderPatternsList();
@@ -790,27 +817,70 @@ function addAiNote(content) {
 }
 
 // --- Phase actions ---
-async function acceptRiskAndAdvance() {
-  const advanceBtn = document.querySelector("#advancePhaseBtn");
-  const isClean = advanceBtn?.dataset.clean === "1";
-  const phases = getPhases().map((phase) => {
-    if (phase.key === "F1") return { ...phase, state: "done", note: isClean ? "diagnóstico completo" : "riesgo aceptado" };
-    if (phase.key === "F2") return { ...phase, state: "active", note: "diseñar intervención" };
-    return { ...phase, state: phase.state === "active" ? "todo" : phase.state };
-  });
-  const patch = { phases, activePhase: "F2", fase_actual: "F2", riskAccepted: !isClean };
-  await updateCycle(patch);
-  // Update local state optimistically
-  if (currentCycleId) {
-    cycles = cycles.map((c) => c.id === currentCycleId ? { ...c, ...patch } : c);
+// Server-driven phase advance with gate validation (Fase 2).
+// withRisk=false → if the gate is unmet the server returns 422 and we render a
+// blocked GateCard; withRisk=true → the server records the risk and advances.
+async function advancePhase(withRisk = false) {
+  if (!currentCycleId) return;
+  try {
+    const res = await apiFetch(`/api/cycles/${currentCycleId}/advance`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(withRisk ? { risk: true } : {}),
+    });
+    if (res.status === 422) {
+      const data = await res.json();
+      renderGateCard(data.missing ?? [], data.phase);
+      return;
+    }
+    if (!res.ok) { showToast("No se pudo avanzar de fase.", true); return; }
+    const data = await res.json();
+    cycles = cycles.map((c) => (c.id === currentCycleId ? data.cycle : c));
+    removeGateCard();
+    renderActiveCycle();
+    renderStepper();
+    renderBriefState();
+    addAiNote(data.skippedWithRisk
+      ? `Avanzamos a ${data.advancedTo} con riesgo explícito (gate incompleto). Queda registrado en "Riesgos asumidos".`
+      : `Gate cumplido. Avanzamos a ${data.advancedTo}.`);
+  } catch {
+    showToast("Error de conexión al avanzar de fase.", true);
   }
-  setBriefProgress(Math.max(filled, 7));
-  renderStepper();
-  renderBriefState();
-  const msg = isClean
-    ? "Diagnóstico completo. Avanzamos a F2 · Design para definir la intervención."
-    : "Avanzamos a F2 con riesgo explícito. El brief mantiene el tag para que no parezca un diagnóstico cerrado.";
-  addAiNote(msg);
+}
+
+// Blocked-gate card in the conversation: lists what's missing + two actions.
+function renderGateCard(missing, phase) {
+  removeGateCard();
+  const inner = messageStream.querySelector(".stream-inner") || messageStream;
+  const items = missing.map((m) => `<li>${escapeHtml(m.message ?? m.key ?? String(m))}</li>`).join("");
+  const card = document.createElement("div");
+  card.className = "gate-card is-blocked";
+  card.innerHTML = `
+    <div class="gate-head"><span class="gate-icon">!</span><strong>Gate de ${escapeHtml(phase ?? "")} bloqueado</strong></div>
+    <p>No puedes avanzar todavía. Falta:</p>
+    <ul class="gate-missing">${items}</ul>
+    <div class="gate-actions">
+      <button type="button" class="secondary-action" data-gate="dismiss">Completarlo primero</button>
+      <button type="button" class="primary-action" data-gate="risk">Avanzar con riesgo</button>
+    </div>`;
+  card.querySelector('[data-gate="dismiss"]').addEventListener("click", removeGateCard);
+  card.querySelector('[data-gate="risk"]').addEventListener("click", () => advancePhase(true));
+  inner.appendChild(card);
+  messageStream.scrollTop = messageStream.scrollHeight;
+}
+
+function removeGateCard() {
+  messageStream.querySelector(".gate-card")?.remove();
+}
+
+// Iteration loop banner (purple) shown when a cycle loops back to F1.
+function renderIterationBanner(count) {
+  const inner = messageStream.querySelector(".stream-inner") || messageStream;
+  inner.insertAdjacentHTML(
+    "beforeend",
+    `<div class="iteration-banner">↻ Iteración ${escapeHtml(String(count))} — de vuelta en F1 · Diagnose</div>`
+  );
+  messageStream.scrollTop = messageStream.scrollHeight;
 }
 
 function renderBriefState() {
@@ -1137,7 +1207,7 @@ document.querySelector("#briefCauseSelector")?.addEventListener("click", async (
 // F1→F2 advance button
 document.querySelector("#advancePhaseBtn")?.addEventListener("click", () => {
   if (!getCurrentCycle()) return;
-  acceptRiskAndAdvance();
+  advancePhase(false);
 });
 
 phaseStepper?.addEventListener("click", async (event) => {
@@ -1193,7 +1263,7 @@ commandPalette?.addEventListener("click", (event) => {
   }
   if (command === "advance") {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para avanzar de fase."); }
-    else acceptRiskAndAdvance();
+    else advancePhase(false);
   }
   commandPalette.hidden = true;
 });

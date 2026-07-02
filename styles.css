@@ -700,3 +700,21 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 /* --- Focus ring on interactive buttons (T3.1) --- */
 .bmap-btn:focus-visible,
 .deliverable-switch button:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+
+/* --- Gate card (blocked) — Fase 2 --- */
+.gate-card { background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: var(--r-lg); padding: 14px 16px; }
+.gate-head { align-items: center; display: flex; gap: 10px; margin-bottom: 6px; }
+.gate-icon { align-items: center; background: var(--warn); border-radius: var(--r-xs); color: #fff; display: inline-flex; font-weight: 700; height: 20px; justify-content: center; width: 20px; }
+.gate-head strong { font-size: 13.5px; font-weight: 700; }
+.gate-card p { color: var(--text2); font-size: 13px; margin: 0 0 8px; }
+.gate-missing { color: var(--text); font-size: 13px; margin: 0 0 12px; padding-left: 18px; }
+.gate-missing li { margin-bottom: 3px; }
+.gate-actions { display: flex; gap: 9px; }
+
+/* --- F0 feature rejection (red bubble) — Fase 2 --- */
+.feature-reject { background: var(--danger-bg); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); border-radius: var(--r-lg); color: var(--danger); padding: 12px 14px; }
+.feature-reject strong { display: block; font-size: 14px; }
+.feature-reject p { color: var(--text2); font-size: 13px; margin: 6px 0 0; }
+
+/* --- Iteration loop banner (purple) — Fase 2 --- */
+.iteration-banner { background: var(--iterate-bg); border: 1px solid color-mix(in srgb, var(--iterate) 40%, transparent); border-radius: var(--r-md); color: var(--iterate); font-size: 13px; font-weight: 600; padding: 9px 12px; text-align: center; }
