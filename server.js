@@ -114,6 +114,91 @@ async function persistCycles() {
   }
 }
 
+// --- LLM structured extraction (Fase 1) ---
+// After a chat turn, ask the model to extract Intervention Brief fields from the
+// conversation as a forced tool call, returning the LIVE cycle schema directly.
+// Only fields the model can infer are returned; the rest are omitted.
+const BRIEF_EXTRACTION_TOOL = {
+  name: "update_brief",
+  description:
+    "Extrae campos del Intervention Brief a partir de la conversación de producto (metodología B=MAP). " +
+    "Devuelve SOLO los campos que se puedan inferir con evidencia de la conversación; omite los que no.",
+  input_schema: {
+    type: "object",
+    properties: {
+      behavior_statement: { type: "string", description: "Comportamiento objetivo: quién hace qué, cuándo, y no hace qué hoy." },
+      sub_perfil: { type: "string", description: "Sub-perfil del usuario (ej. Rebuscador Digital, Seller Explorador)." },
+      transicion: { type: "string", description: "Transición cognitiva (ej. Setup_Aha, Aha_Habito)." },
+      causa: { type: "string", enum: ["M", "A", "P"], description: "Causa B=MAP: M=Motivación, A=Ability, P=Prompt." },
+      evidencia_primaria: { type: "string", description: "Evidencia cuantitativa primaria del comportamiento." },
+      segunda_fuente: { type: "string", description: "Segunda fuente de evidencia (triangulación)." },
+      hipotesis: { type: "string", description: "Hipótesis de intervención falsable." },
+      senal_cuantitativa: { type: "string", description: "Métrica de éxito / señal cuantitativa objetivo." },
+    },
+  },
+};
+
+const BRIEF_FIELD_KEYS = ["behavior_statement", "evidencia_primaria", "segunda_fuente", "hipotesis", "senal_cuantitativa"];
+const CYCLE_TOP_KEYS = ["sub_perfil", "transicion", "causa"];
+
+async function extractBriefUpdates(apiKey, model, cycle, userMessage, reply) {
+  try {
+    const context = JSON.stringify({
+      fase: cycle.fase_actual ?? cycle.activePhase,
+      brief_actual: cycle.brief ?? {},
+      sub_perfil: cycle.sub_perfil, transicion: cycle.transicion, causa: cycle.causa,
+    });
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 512,
+        tools: [BRIEF_EXTRACTION_TOOL],
+        tool_choice: { type: "tool", name: "update_brief" },
+        messages: [{
+          role: "user",
+          content:
+            `Contexto del ciclo:\n${context}\n\n` +
+            `Último turno de la conversación:\nUsuario: ${userMessage}\nAsistente: ${reply}\n\n` +
+            `Extrae los campos del brief que se puedan inferir con evidencia. No inventes.`,
+        }],
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const toolUse = (data.content ?? []).find((b) => b.type === "tool_use");
+    return toolUse?.input ?? null;
+  } catch (err) {
+    console.warn("Brief extraction failed:", err.message);
+    return null;
+  }
+}
+
+// Merge extracted fields into the cycle without overwriting user-confirmed values.
+function applyBriefUpdates(cycle, updates) {
+  if (!updates || typeof updates !== "object") return { cycle, changed: [] };
+  const brief = { ...(cycle.brief ?? {}) };
+  const changed = [];
+  for (const key of BRIEF_FIELD_KEYS) {
+    const val = updates[key];
+    if (typeof val !== "string" || !val.trim()) continue;
+    if (brief[key]?.confirmed) continue; // never override a user-confirmed field
+    brief[key] = { value: val.trim(), confirmed: false, source: "llm_suggested" };
+    changed.push(`brief.${key}`);
+  }
+  const patch = { brief };
+  for (const key of CYCLE_TOP_KEYS) {
+    const val = updates[key];
+    if (typeof val !== "string" || !val.trim()) continue;
+    if (cycle[key]) continue; // don't override an existing top-level value
+    patch[key] = val.trim();
+    if (key === "causa") patch.causa_source = "llm_suggested";
+    changed.push(key);
+  }
+  return { cycle: { ...cycle, ...patch }, changed };
+}
+
 // --- JWT (HMAC-SHA256, no external deps) ---
 function b64url(buf) {
   return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
@@ -572,18 +657,30 @@ async function handle(req, res) {
     const data = await llmRes.json();
     const reply = data.content?.[0]?.text ?? "Sin respuesta del modelo.";
 
-    // Persist messages in cycle
+    // Persist messages + run structured extraction to auto-fill the brief (Fase 1)
+    let updatedCycle = null;
+    let extractionChanged = [];
     if (cycle) {
       const now = new Date().toISOString();
       const msgs = cycle.messages ?? [];
       msgs.push({ id: crypto.randomUUID(), role: "user", content: message, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
       msgs.push({ id: crypto.randomUUID(), role: "assistant", content: reply, fase: cycle.fase_actual ?? cycle.activePhase, created_at: now });
-      cycles.set(cycleId, { ...cycle, messages: msgs, last_activity_at: now });
+      let next = { ...cycle, messages: msgs, last_activity_at: now };
+
+      const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+      const updates = await extractBriefUpdates(ANTHROPIC_API_KEY, model, next, message, reply);
+      const applied = applyBriefUpdates(next, updates);
+      next = { ...applied.cycle, updatedAt: now };
+      extractionChanged = applied.changed;
+
+      cycles.set(cycleId, next);
+      updatedCycle = next;
       void persistCycles();
+      if (extractionChanged.length) logAudit(currentUser?.email || "anon", "brief_extracted", cycleId, { fields: extractionChanged });
     }
 
     logAudit(currentUser?.email || "anon", "chat_message", cycleId || "global");
-    return json(res, { reply });
+    return json(res, { reply, cycle: updatedCycle, changed: extractionChanged });
   }
 
   // --- Health check ---

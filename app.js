@@ -752,16 +752,25 @@ async function sendMessage() {
     thinkingEl.classList.remove("thinking");
     const reply = data.reply ?? data.error ?? "Sin respuesta.";
     thinkingEl.innerHTML = renderMarkdown(reply);
-    // Keep local cycle.messages in sync so history is correct on re-select
-    const activeCycle = getCurrentCycle();
-    if (activeCycle) {
-      const now = new Date().toISOString();
-      activeCycle.messages = [
-        ...(activeCycle.messages ?? []),
-        { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
-        { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
-      ];
-      cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
+    if (data.cycle) {
+      // Server is authoritative: it appended messages and auto-extracted brief
+      // fields from the conversation (Fase 1). Adopt it and refresh the brief.
+      cycles = cycles.map((c) => (c.id === data.cycle.id ? data.cycle : c));
+      renderActiveCycle();
+      renderBriefState();
+      flashBriefFields(data.changed);
+    } else {
+      // Fallback: keep local cycle.messages in sync
+      const activeCycle = getCurrentCycle();
+      if (activeCycle) {
+        const now = new Date().toISOString();
+        activeCycle.messages = [
+          ...(activeCycle.messages ?? []),
+          { id: `u-${Date.now()}`, role: "user", content: text, created_at: now },
+          { id: `a-${Date.now()}`, role: "assistant", content: reply, created_at: now },
+        ];
+        cycles = cycles.map((c) => (c.id === currentCycleId ? activeCycle : c));
+      }
     }
   } catch {
     thinkingEl.classList.remove("thinking");
@@ -900,6 +909,30 @@ function setField(el, value) {
     el.classList.add("confirm-field");
     el.classList.remove("mono-value");
   }
+}
+
+// Flash the brief fields the LLM just auto-filled (Fase 1). `changed` is the list
+// of keys returned by /api/chat, e.g. ["brief.behavior_statement", "causa"].
+const BRIEF_FIELD_TO_EL = {
+  "brief.behavior_statement": "briefBehavior",
+  "brief.evidencia_primaria": "briefEvidence",
+  "brief.segunda_fuente": "secondSource",
+  "brief.hipotesis": "hypothesisField",
+  "brief.senal_cuantitativa": "metricField",
+  "sub_perfil": "briefSubProfile",
+  "transicion": "briefCogLevel",
+  "causa": "briefCause",
+};
+function flashBriefFields(changed) {
+  if (!Array.isArray(changed) || !changed.length) return;
+  for (const key of changed) {
+    const el = document.getElementById(BRIEF_FIELD_TO_EL[key]);
+    if (!el) continue;
+    el.classList.remove("fillpop");
+    void el.offsetWidth; // restart animation
+    el.classList.add("fillpop");
+  }
+  if (changed.length) showToast(`Brief actualizado: ${changed.length} campo(s) desde la conversación.`);
 }
 
 // Read cycle.brief{} and cycle top-level fields → populate all brief panel DOM elements
