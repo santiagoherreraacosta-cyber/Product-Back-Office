@@ -718,3 +718,11 @@ textarea { background: transparent; border: 0; color: var(--text); display: bloc
 
 /* --- Iteration loop banner (purple) — Fase 2 --- */
 .iteration-banner { background: var(--iterate-bg); border: 1px solid color-mix(in srgb, var(--iterate) 40%, transparent); border-radius: var(--r-md); color: var(--iterate); font-size: 13px; font-weight: 600; padding: 9px 12px; text-align: center; }
+
+/* --- Export validation modal (Fase 3) --- */
+.export-modal { align-items: flex-start; background: rgba(0,0,0,.22); display: flex; inset: 0; justify-content: center; padding-top: 14vh; position: fixed; z-index: 30; }
+.export-modal-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--shadow-modal); max-width: 420px; padding: 18px; width: 100%; }
+.export-modal-msg { color: var(--text); font-size: 13.5px; margin: 6px 0 10px; }
+.export-missing { color: var(--text2); font-size: 13px; margin: 0 0 14px; padding-left: 18px; }
+.export-missing li { margin-bottom: 3px; }
+.export-modal-actions { display: flex; gap: 9px; justify-content: flex-end; }
