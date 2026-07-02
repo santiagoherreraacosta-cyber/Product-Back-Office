@@ -1,0 +1,70 @@
+/* =============================================================
+   Design Tokens — Asistente Dropi
+   Source of truth: Asistente Dropi.dc.html
+   Available as CSS custom properties; TS mirror below in comment.
+   ============================================================= */
+:root {
+  /* ---- Neutrals (warm off-white / ink) ---- */
+  --bg:            #FAFAF8;   /* app background */
+  --bg-rail:       #F5F5F1;   /* left sidebar */
+  --surface:       #FFFFFF;   /* cards, panels */
+  --surface-sunk:  #F6F6F2;   /* inset blocks, quotes */
+  --surface-alt:   #FCFCFA;   /* closed/dim cards */
+  --chip-bg:       #EFEFEA;   /* neutral chips, segmented ctrl track */
+  --border:        #E8E8E3;   /* default hairline */
+  --border-soft:   #EFEFEA;   /* dividers */
+  --border-dashed: #E2E2DC;
+
+  --ink:           #1F2328;   /* primary text */
+  --ink-2:         #4A5058;   /* secondary text */
+  --muted:         #6B7280;   /* tertiary text */
+  --muted-2:       #9AA1AB;   /* labels / meta */
+  --muted-3:       #B8BCC4;   /* faint counts */
+  --faint:         #C6C9CF;
+
+  /* ---- Brand (Dropi orange) ---- */
+  --brand:         #FF6B00;
+  --brand-tint:    #FFF0E6;   /* soft orange bg */
+  --brand-tint-br: #FFCBA6;   /* hover border */
+  --brand-shadow:  rgba(255,107,0,.4);
+
+  /* ---- B=MAP cause colors (same chroma, different hue) ---- */
+  --cause-M:       #8B5CF6;  --cause-M-bg: #F1ECFD;  /* Motivación */
+  --cause-A:       #3B82F6;  --cause-A-bg: #E9F1FE;  /* Ability   */
+  --cause-P:       #14B8A6;  --cause-P-bg: #E3F6F3;  /* Prompt    */
+
+  /* ---- Semantic ---- */
+  --ok:            #10B981;  --ok-ink: #0B7A54;  --ok-bg: #E6F6EF;   /* gate passed */
+  --warn:          #F59E0B;  --warn-ink:#B4790B;  --warn-bg:#FDF3E2;  /* [CONFIRMAR] / risk */
+  --danger:        #C23B3B;  --danger-bg:#FDECEC;                     /* error / matado */
+  --iterate:       #7C4BD6;  --iterate-bg:#F1ECFD;                    /* loop */
+
+  /* ---- Radius ---- */
+  --r-xs: 5px; --r-sm: 7px; --r-md: 9px; --r-lg: 12px; --r-xl: 14px; --r-2xl: 16px; --r-pill: 999px;
+
+  /* ---- Shadow ---- */
+  --shadow-card:  0 1px 2px rgba(20,20,20,.05);
+  --shadow-hover: 0 10px 30px rgba(20,20,20,.07);
+  --shadow-modal: 0 30px 80px rgba(0,0,0,.22);
+  --shadow-brand: 0 1px 2px rgba(255,107,0,.35);
+
+  /* ---- Type ---- */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;  /* data, evidence, IDs */
+  /* scale (px): 10.5 label · 11 meta · 12 chip · 12.5 body-sm · 13.5 body · 14.5 chat · 15.5 card-title · 20 modal-h · 28 page-h */
+  /* weights: 400 body · 500 · 600 semibold · 700 bold */
+  /* headings: letter-spacing -.02em to -.03em; labels: +.06em uppercase */
+
+  /* ---- Motion ---- */
+  --ease: 140ms ease;         /* hovers */
+  /* keyframes: dotpulse (thinking), spin (export loader), fadein (modals), caret, fillpop */
+}
+
+/*
+TS token mirror (if you prefer JS):
+export const color = { bg:'#FAFAF8', surface:'#fff', ink:'#1F2328', brand:'#FF6B00',
+  causeM:'#8B5CF6', causeA:'#3B82F6', causeP:'#14B8A6',
+  ok:'#10B981', warn:'#F59E0B', danger:'#C23B3B', iterate:'#7C4BD6' };
+export const cause = { M:{c:'#8B5CF6',bg:'#F1ECFD',label:'Motivación'},
+  A:{c:'#3B82F6',bg:'#E9F1FE',label:'Ability'}, P:{c:'#14B8A6',bg:'#E3F6F3',label:'Prompt'} };
+*/
