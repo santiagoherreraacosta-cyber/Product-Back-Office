@@ -1079,6 +1079,62 @@ function loadBriefFromCycle(cycle) {
   setBriefProgress(Math.min(cnt, 11));
 }
 
+// Fields required for a complete Intervention Brief; those without a value are
+// treated as [CONFIRMAR] (assumptions) and drive the export validation modal.
+const REQUIRED_BRIEF_FIELDS = [
+  { key: "behavior_statement", label: "Comportamiento objetivo" },
+  { key: "causa", label: "Causa B=MAP", topLevel: true },
+  { key: "evidencia_primaria", label: "Evidencia primaria" },
+  { key: "hipotesis", label: "Hipótesis de intervención" },
+  { key: "senal_cuantitativa", label: "Métrica de éxito" },
+];
+function getMissingBriefFields(cycle) {
+  const b = cycle?.brief ?? {};
+  return REQUIRED_BRIEF_FIELDS.filter((f) => {
+    const val = f.topLevel ? (cycle?.[f.key] ?? b[f.key]?.value) : b[f.key]?.value;
+    return !(typeof val === "string" ? val.trim() : val);
+  });
+}
+
+// Export flow with validation (Fase 3): if the brief has [CONFIRMAR] fields and
+// the user hasn't forced, show a modal to complete them or export with assumptions.
+function exportBriefFlow(force = false) {
+  const cycle = getCurrentCycle();
+  if (!cycle) { showToast("Selecciona un ciclo primero para exportar el brief."); return; }
+  const missing = getMissingBriefFields(cycle);
+  if (missing.length && !force) { openExportModal(missing); return; }
+  closeExportModal();
+  downloadBrief();
+  showToast("Brief exportado en Markdown.");
+}
+
+function openExportModal(missing) {
+  closeExportModal();
+  const items = missing.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("");
+  const overlay = document.createElement("div");
+  overlay.id = "exportModal";
+  overlay.className = "export-modal";
+  overlay.innerHTML = `
+    <div class="export-modal-card">
+      <p class="section-label">Exportar brief</p>
+      <p class="export-modal-msg">Hay ${missing.length} campo(s) sin confirmar. La IA los trata como <strong>supuestos</strong>.</p>
+      <ul class="export-missing">${items}</ul>
+      <div class="export-modal-actions">
+        <button type="button" class="secondary-action" data-export="complete">Completar campos</button>
+        <button type="button" class="primary-action" data-export="force">Exportar con supuestos</button>
+      </div>
+    </div>`;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeExportModal(); });
+  overlay.querySelector('[data-export="complete"]').addEventListener("click", closeExportModal);
+  overlay.querySelector('[data-export="force"]').addEventListener("click", () => exportBriefFlow(true));
+  // Mount inside .workspace so design tokens (and dark mode) apply.
+  workspace.appendChild(overlay);
+}
+
+function closeExportModal() {
+  document.getElementById("exportModal")?.remove();
+}
+
 function downloadBrief() {
   const cycle = getCurrentCycle();
   const b = cycle?.brief ?? {};
@@ -1254,8 +1310,7 @@ commandPalette?.addEventListener("click", (event) => {
   if (["home", "workspace", "library", "context"].includes(command)) setView(command);
   if (command === "theme") themeToggle.click();
   if (command === "brief") {
-    if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para exportar el brief."); }
-    else downloadBrief();
+    exportBriefFlow();
   }
   if (command === "experiment") {
     if (!getCurrentCycle()) { showToast("Selecciona un ciclo primero para ver la Experiment Card."); }
@@ -1276,7 +1331,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") commandPalette.hidden = true;
 });
 
-exportBrief?.addEventListener("click", downloadBrief);
+exportBrief?.addEventListener("click", () => exportBriefFlow());
 
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.viewTarget));
