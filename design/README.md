@@ -1,5 +1,7 @@
 # Handoff: Asistente Dropi
 
+> **Nota:** el prototipo interactivo (`Asistente Dropi.dc.html`) y su `support.js` **no se versionan aquí** (código prototipo pesado que hace fallar el Quality Gate de SonarCloud). Se conservan fuera del repo como fuente de verdad visual; en esta carpeta queda solo la referencia liviana: docs, `tokens.css` y logos.
+
 ## Overview
 **Asistente Dropi** es un asistente conversacional de Product Management que guía al equipo por un ciclo de decisión de 6 fases (F0–F5) — desde nombrar un **comportamiento** hasta destilar un **patrón** reutilizable. El lenguaje de causas es **B=MAP** (Motivación / Ability / Prompt). El producto fuerza rigor con **gates** por fase: no se avanza sin cumplir la condición, salvo "Avanzar con riesgo" (que queda registrado).
 
