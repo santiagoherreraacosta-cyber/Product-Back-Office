@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { getContextDocuments, updateContextDocument } from "./src/contextStore.js";
+import { getMissingGateRequirements, acceptRisk, PHASES } from "./src/phaseEngine.js";
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
@@ -112,6 +113,19 @@ async function persistCycles() {
   } catch (err) {
     console.warn("Could not persist cycles.json:", err.message);
   }
+}
+
+// --- F0 behavior validation (Fase 2) ---
+// Heuristic: reject titles framed as a solution/feature instead of a behavior.
+const FEATURE_TERMS = [
+  "construir", "crear", "agregar", "añadir", "implementar", "desarrollar", "lanzar",
+  "botón", "boton", "pantalla", "wizard", "modal", "banner", "popup", "feature",
+  "funcionalidad", "onboarding", "dashboard", "notificación", "notificacion",
+  "rediseñar", "rediseno", "integrar", "flujo nuevo", "nueva sección", "nueva seccion",
+];
+function looksLikeFeature(title) {
+  const t = String(title || "").toLowerCase();
+  return FEATURE_TERMS.some((term) => t.includes(term));
 }
 
 // --- LLM structured extraction (Fase 1) ---
@@ -406,6 +420,16 @@ async function handle(req, res) {
   if (req.method === "POST" && pathname === "/api/cycles") {
     const body = await readBody(req);
     if (!body.title) return json(res, { error: "title required" }, 400);
+    // F0 validation (Fase 2): reject solution/feature framing — a cycle must
+    // start from a behavior ("quién hace/no hace qué"), not a feature to build.
+    if (!body.force && looksLikeFeature(body.title)) {
+      logAudit(currentUser?.email, "behavior_rejected", "new", { reason: "feature", title: body.title });
+      return json(res, {
+        error: "Eso es una solución, no un comportamiento.",
+        reason: "feature",
+        hint: "Describe qué seller, haciendo qué, no está haciendo qué. Empieza por el comportamiento, no por la feature.",
+      }, 422);
+    }
     const now = new Date().toISOString();
     const cycle = {
       id: `cycle-${crypto.randomUUID()}`,
@@ -450,10 +474,81 @@ async function handle(req, res) {
     const cycleId = parts[3];
     const rest = parts.slice(4).join("/");
 
+    // Gate status for a phase: { ok, missing:[{key,message}] } (Fase 2)
+    if (req.method === "GET" && rest === "gate") {
+      const cycle = cycles.get(cycleId);
+      if (!cycle) return json(res, { error: "Not found" }, 404);
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const phase = url.searchParams.get("phase") || cycle.fase_actual || cycle.activePhase || "F0";
+      if (!PHASES.includes(phase)) return json(res, { error: "Invalid phase" }, 400);
+      const missing = getMissingGateRequirements(cycle, phase);
+      return json(res, { phase, ok: missing.length === 0, missing });
+    }
+
+    // Advance a phase with server-side gate validation (Fase 2).
+    // Body: { risk?: boolean, riskText?: string }. If the current phase gate is
+    // not met and risk!==true → 422 {missing}. With risk → record the accepted
+    // risk, mark the phase skipped, and advance.
+    if (req.method === "POST" && rest === "advance") {
+      let cycle = cycles.get(cycleId);
+      if (!cycle) return json(res, { error: "Not found" }, 404);
+      if (cycle.estado && cycle.estado !== "activo") return json(res, { error: "Cycle is closed" }, 409);
+      const body = await readBody(req);
+      const current = cycle.fase_actual ?? cycle.activePhase ?? "F0";
+      const idx = PHASES.indexOf(current);
+      if (idx < 0 || idx >= PHASES.length - 1) return json(res, { error: "Cannot advance from this phase" }, 400);
+      const next = PHASES[idx + 1];
+      const missing = getMissingGateRequirements(cycle, current);
+      const withRisk = body.risk === true;
+      if (missing.length && !withRisk) {
+        return json(res, { error: "Gate not met", phase: current, missing }, 422);
+      }
+      const now = new Date().toISOString();
+      let riskAccepted = cycle.riskAccepted ?? false;
+      if (missing.length && withRisk) {
+        const riskText = body.riskText?.trim() || `Avance de ${current} con gate incompleto: ${missing.map((m) => m.message).join(" ")}`;
+        cycle = acceptRisk(cycle, current, riskText, { id: currentUser?.sub, name: currentUser?.email });
+        riskAccepted = true;
+      }
+      const phases = (cycle.phases ?? []).map((p) => {
+        if (p.key === current) return { ...p, state: "done", skipped: missing.length > 0 && withRisk ? true : p.skipped, note: missing.length && withRisk ? "riesgo aceptado" : "completo" };
+        if (p.key === next) return { ...p, state: "active" };
+        return p;
+      });
+      const updated = { ...cycle, fase_actual: next, activePhase: next, phases, riskAccepted, updatedAt: now, last_activity_at: now };
+      cycles.set(cycleId, updated);
+      void persistCycles();
+      logAudit(currentUser?.email, missing.length && withRisk ? "gate_skipped_with_risk" : "gate_passed", cycleId, { from: current, to: next });
+      return json(res, { cycle: updated, advancedTo: next, skippedWithRisk: missing.length > 0 && withRisk });
+    }
+
     if (req.method === "POST" && rest === "close") {
       const cycle = cycles.get(cycleId);
       if (!cycle) return json(res, { error: "Not found" }, 404);
       const body = await readBody(req);
+      // Iteration loop (Fase 2): closing with "iterando" does NOT close the
+      // cycle — it loops back to F1 (Diagnose) to re-diagnose, keeping history.
+      const resultado = body.resultado_cierre ?? body.decision;
+      if (resultado === "iterando") {
+        const now = new Date().toISOString();
+        const phases = (cycle.phases ?? []).map((p) =>
+          p.key === "F1" ? { ...p, state: "active", note: "iteración" } : { ...p, state: p.key === "F0" ? "done" : "todo" });
+        const iterated = {
+          ...cycle,
+          fase_actual: "F1",
+          activePhase: "F1",
+          phases,
+          iterated: true,
+          iterationCount: (cycle.iterationCount ?? 1) + 1,
+          riskAccepted: true,
+          updatedAt: now,
+          last_activity_at: now,
+        };
+        cycles.set(cycleId, iterated);
+        void persistCycles();
+        logAudit(currentUser?.email, "cycle_iterated", cycleId, { iterationCount: iterated.iterationCount });
+        return json(res, { cycle: iterated, iterated: true });
+      }
       if (!body.learning?.trim() || !body.pattern_name?.trim()) {
         return json(res, { error: "learning and pattern_name required" }, 400);
       }
@@ -500,6 +595,7 @@ async function handle(req, res) {
       void persistCycles();
       void persistPatterns();
       logAudit(currentUser?.email, "cycle_closed", cycleId, { patternId });
+      logAudit(currentUser?.email, "pattern_created", patternId, { type: newPattern.tipo, cause: newPattern.causa });
       return json(res, { cycle: closedCycle, pattern: newPattern });
     }
 
