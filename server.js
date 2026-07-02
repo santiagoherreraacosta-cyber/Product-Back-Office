@@ -8,6 +8,9 @@ import { getContextDocuments, updateContextDocument } from "./src/contextStore.j
 
 const PORT = process.env.PORT || 8000;
 const ROOT = process.cwd();
+// Persistence dir. Override with DATA_DIR to point at a Railway persistent
+// volume (e.g. DATA_DIR=/data) so cycles/patterns survive redeploys.
+const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const AUTH_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:8000,http://localhost:3000").split(",").map((s) => s.trim());
 const MAX_BODY_BYTES = 512 * 1024;
@@ -31,22 +34,51 @@ let auditEvents = [];
 let patterns = [];
 let systemPrompt = "";
 
+// Seed DATA_DIR from the bundled data/ on first boot. When DATA_DIR points at a
+// fresh persistent volume it starts empty; copy any missing seed files (esp.
+// context_documents.json, which the context store requires) so the app is
+// functional immediately and then persists across redeploys.
+async function seedDataDir() {
+  const bundled = path.join(ROOT, "data");
+  if (path.resolve(DATA_DIR) === path.resolve(bundled)) return; // no volume override
+  const seedFiles = ["context_documents.json", "cycles.json", "patterns.json", "audit_events.json"];
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    for (const name of seedFiles) {
+      const dest = path.join(DATA_DIR, name);
+      try {
+        await fs.access(dest);
+      } catch {
+        try {
+          await fs.copyFile(path.join(bundled, name), dest);
+          console.log(`Seeded ${name} into DATA_DIR`);
+        } catch (err) {
+          if (err.code !== "ENOENT") console.warn(`Could not seed ${name}:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Could not seed DATA_DIR:", err.message);
+  }
+}
+
 // Load persisted data at startup (best-effort; missing files are expected on first run)
 async function loadData() {
+  await seedDataDir();
   try {
-    const raw = await fs.readFile(path.join(ROOT, "data/audit_events.json"), "utf8");
+    const raw = await fs.readFile(path.join(DATA_DIR, "audit_events.json"), "utf8");
     auditEvents = JSON.parse(raw);
   } catch (err) {
     if (err.code !== "ENOENT") console.warn("Could not load audit_events.json:", err.message);
   }
   try {
-    const raw = await fs.readFile(path.join(ROOT, "data/patterns.json"), "utf8");
+    const raw = await fs.readFile(path.join(DATA_DIR, "patterns.json"), "utf8");
     patterns = JSON.parse(raw);
   } catch (err) {
     if (err.code !== "ENOENT") console.warn("Could not load patterns.json:", err.message);
   }
   try {
-    const raw = await fs.readFile(path.join(ROOT, "data/cycles.json"), "utf8");
+    const raw = await fs.readFile(path.join(DATA_DIR, "cycles.json"), "utf8");
     JSON.parse(raw).forEach((c) => cycles.set(c.id, c));
   } catch (err) {
     if (err.code !== "ENOENT") console.warn("Could not load cycles.json:", err.message);
@@ -60,7 +92,7 @@ async function loadData() {
 
 async function persistAuditEvents() {
   try {
-    await fs.writeFile(path.join(ROOT, "data/audit_events.json"), JSON.stringify(auditEvents, null, 2));
+    await fs.writeFile(path.join(DATA_DIR, "audit_events.json"), JSON.stringify(auditEvents, null, 2));
   } catch (err) {
     console.warn("Could not persist audit_events.json:", err.message);
   }
@@ -68,7 +100,7 @@ async function persistAuditEvents() {
 
 async function persistPatterns() {
   try {
-    await fs.writeFile(path.join(ROOT, "data/patterns.json"), JSON.stringify(patterns, null, 2));
+    await fs.writeFile(path.join(DATA_DIR, "patterns.json"), JSON.stringify(patterns, null, 2));
   } catch (err) {
     console.warn("Could not persist patterns.json:", err.message);
   }
@@ -76,7 +108,7 @@ async function persistPatterns() {
 
 async function persistCycles() {
   try {
-    await fs.writeFile(path.join(ROOT, "data/cycles.json"), JSON.stringify(Array.from(cycles.values()), null, 2));
+    await fs.writeFile(path.join(DATA_DIR, "cycles.json"), JSON.stringify(Array.from(cycles.values()), null, 2));
   } catch (err) {
     console.warn("Could not persist cycles.json:", err.message);
   }

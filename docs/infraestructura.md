@@ -63,6 +63,18 @@ El backend debe exponer como mínimo:
 - Crea bases/usuarios separados para `dev`, `staging` y `production`.
 - Guarda `DATABASE_URL` en el gestor de secretos del proveedor, no en el repositorio.
 
+## Persistencia de datos (DATA_DIR / volumen)
+
+El backend en vivo (`server.js`) persiste ciclos, patrones, auditoría y contexto en archivos JSON dentro de `DATA_DIR` (default: `./data`). En Railway el filesystem del contenedor es **efímero**: se reinicia en cada redeploy, así que los datos creados en runtime se pierden si se usa el default.
+
+Para un MVP durable con cambio mínimo (sin migrar a Postgres):
+
+1. En Railway, crear un **Volume** y montarlo en una ruta, p. ej. `/data`.
+2. Setear la variable de entorno **`DATA_DIR=/data`** en el servicio.
+3. En el primer arranque, `server.js` (`seedDataDir()`) copia los archivos semilla (`context_documents.json`, `cycles.json`, `patterns.json`, `audit_events.json`) al volumen si faltan. A partir de ahí, todo lo que se crea persiste entre redeploys.
+
+Sin `DATA_DIR`, el comportamiento no cambia (usa `./data` del repo). Para producción robusta multi-instancia, migrar a Postgres gestionado (Supabase/Neon/Railway Postgres) usando la capa `server/src/db/` — ver nota en `design/FRONT-BACK-MAP.md`.
+
 ## CI/CD
 
 El workflow `.github/workflows/deploy.yml` define:

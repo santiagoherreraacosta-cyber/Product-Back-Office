@@ -20,6 +20,17 @@ Editar campos del Brief, selector B=MAP, avanzar fase, cerrar ciclo → todo va 
 ## ⚠️ Degradado (responde, pero limitado)
 - **`POST /api/chat` sin `ANTHROPIC_API_KEY`**: el back responde con un stub `[LLM no configurado…]` en vez del modelo. No es front muerto, pero el chat no es útil hasta poner la key en Railway.
 
+## 💾 Persistencia durable (DATA_DIR / volumen)
+`server.js` y `src/contextStore.js` leen/escriben en `DATA_DIR` (default: `./data`).
+En Railway el filesystem es efímero, así que para no perder ciclos/patrones al redeploy:
+- Crear un **volumen persistente** en Railway y setear `DATA_DIR=/data` (ruta de montaje del volumen).
+- En el primer arranque, `seedDataDir()` copia los archivos semilla (`context_documents.json`, `cycles.json`, `patterns.json`, `audit_events.json`) al volumen si faltan → el app queda funcional de inmediato y luego persiste.
+- Sin `DATA_DIR`, todo sigue igual que antes (usa `./data` del repo). Ver `docs/infraestructura.md`.
+
+## 🗂️ Código no desplegado en el repo (no es el app vivo)
+- **`server/src/` (backend TypeScript)** — WIP con valor y **testeado** (`npm test` corre `phaseEngine`, `promptBuilder`, `extractionService`; el CI `lint` chequea `server/src/db/*`). Contiene la máquina de **gates** (`phaseEngine.ts`), extracción estructurada del LLM y la capa **Postgres** (`db/`). **No está cableado** al app vivo (que es `server.js`). Se conserva como base para: persistencia Postgres (v2) y los gates del handoff.
+- **`web/` (frontend Vite)** — era un esqueleto (login + placeholder), superado por el frontend vanilla desplegado. **Eliminado** del repo por ser código muerto.
+
 ## 🧩 Solo cliente (no necesitan backend — no es front muerto)
 - **Exportar Brief** (`downloadBrief`): genera Markdown en el navegador (Blob). Correcto que no toque backend.
 - **Slash commands** (`/nuevo-ciclo`, `/brief`, `/experimento`), command palette, toggle de tema, placeholder rotativo: lógica de UI pura.
