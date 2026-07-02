@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const DATA_PATH = path.join(process.cwd(), 'data', 'context_documents.json');
-const AUDIT_PATH = path.join(process.cwd(), 'data', 'context_audit.log');
+// Honour DATA_DIR (Railway persistent volume) so context persists like the rest.
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
+const DATA_PATH = path.join(DATA_DIR, 'context_documents.json');
+const AUDIT_PATH = path.join(DATA_DIR, 'context_audit.log');
 const CONFIRM_RE = /\[CONFIRMAR[^\]]*\]/g;
 
 export async function getContextDocuments() {
